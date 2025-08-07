@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Apple-inspired global styles */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #ffffff;
+}
+
+/* Custom Apple-style button */
+@layer components {
+  .btn-apple {
+    @apply bg-apple-blue text-white font-medium py-3 px-6 rounded-full hover:bg-blue-600 transition-colors duration-200 text-center inline-block shadow-sm hover:shadow-md;
+  }
+  
+  .btn-apple-outline {
+    @apply border-2 border-apple-blue text-apple-blue font-medium py-3 px-6 rounded-full hover:bg-apple-blue hover:text-white transition-colors duration-200 text-center inline-block;
+  }
+
+  .section-padding {
+    @apply px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto;
+  }
+
+  .text-apple-headline {
+    @apply text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-apple-gray-800;
+  }
+
+  .text-apple-subheadline {
+    @apply text-xl sm:text-2xl font-medium text-apple-gray-600;
+  }
+
+  /* Fix line clamp utility */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Apple-style card */
+  .card-apple {
+    @apply bg-white rounded-2xl shadow-sm border border-apple-gray-200 hover:shadow-lg transition-all duration-300;
+  }
+
+  /* Apple-style input */
+  .input-apple {
+    @apply appearance-none block w-full px-4 py-3 border border-apple-gray-300 rounded-xl shadow-sm placeholder-apple-gray-400 focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-apple-blue transition-colors duration-200;
+  }
+}
+
+/* Apple-style smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar like Apple */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
