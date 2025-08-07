@@ -1,16 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import apiService from '../services/api';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const OrderSuccess = () => {
   const location = useLocation();
   const orderData = location.state || {};
+  const [orderDetails, setOrderDetails] = useState(null);
+  const [loading, setLoading] = useState(false);
   
   const {
     orderNumber = 'ORD-' + Date.now(),
+    orderId,
     total = 0,
     usdtAmount = '0.000000',
-    transactionHash = 'N/A'
+    transactionHash = 'N/A',
+    customerInfo
   } = orderData;
+
+  // If we have an orderId, fetch the full order details
+  useEffect(() => {
+    if (orderId && apiService.isAuthenticated()) {
+      fetchOrderDetails();
+    }
+  }, [orderId]);
+
+  const fetchOrderDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getOrder(orderId);
+      if (response.success) {
+        setOrderDetails(response.order);
+      }
+    } catch (error) {
+      console.error('Failed to fetch order details:', error);
+      // Don't show error to user, just continue with the data we have
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-apple-gray-50">
@@ -35,67 +63,141 @@ const OrderSuccess = () => {
           <div className="bg-white rounded-2xl shadow-sm border border-apple-gray-200 p-8 mb-8 text-left">
             <h2 className="text-xl font-semibold text-apple-gray-900 mb-6 text-center">Order Details</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Order Information */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-apple-gray-600 mb-1">Order Number</label>
-                  <p className="text-lg font-semibold text-apple-gray-900 font-mono">{orderNumber}</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-apple-gray-600 mb-1">Order Date</label>
-                  <p className="text-apple-gray-900">{new Date().toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-apple-gray-600 mb-1">Total Amount</label>
-                  <div className="space-y-1">
-                    <p className="text-lg font-semibold text-apple-gray-900">${total.toFixed(2)} USD</p>
-                    <p className="text-sm text-apple-gray-600">Paid: {usdtAmount} USDT</p>
-                  </div>
-                </div>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner />
               </div>
-
-              {/* Payment Information */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-apple-gray-600 mb-1">Payment Method</label>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-                        <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <span className="text-apple-gray-900 font-medium">USDT (TRC-20)</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-apple-gray-600 mb-1">Transaction Hash</label>
-                  <div className="bg-apple-gray-50 rounded-lg p-3">
-                    <p className="text-sm font-mono text-apple-gray-900 break-all">
-                      {transactionHash}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Order Information */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Order Number</label>
+                    <p className="text-lg font-semibold text-apple-gray-900 font-mono">
+                      {orderDetails?.orderNumber || orderNumber}
                     </p>
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Order Date</label>
+                    <p className="text-apple-gray-900">
+                      {orderDetails 
+                        ? new Date(orderDetails.createdAt).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : new Date().toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                      }
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Total Amount</label>
+                    <div className="space-y-1">
+                      <p className="text-lg font-semibold text-apple-gray-900">
+                        ${(orderDetails?.totals?.total || total).toFixed(2)} USD
+                      </p>
+                      <p className="text-sm text-apple-gray-600">Paid: {usdtAmount} USDT</p>
+                    </div>
+                  </div>
+
+                  {orderDetails?.customerName && (
+                    <div>
+                      <label className="block text-sm font-medium text-apple-gray-600 mb-1">Customer</label>
+                      <p className="text-apple-gray-900">{orderDetails.customerName}</p>
+                      <p className="text-sm text-apple-gray-600">{orderDetails.customerEmail}</p>
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-apple-gray-600 mb-1">Payment Status</label>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-green-600 font-medium">Confirmed</span>
+                {/* Payment Information */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Payment Method</label>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+                          <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <span className="text-apple-gray-900 font-medium">
+                        {orderDetails?.payment?.method || 'USDT'} (TRC-20)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Transaction Hash</label>
+                    <div className="bg-apple-gray-50 rounded-lg p-3">
+                      <p className="text-sm font-mono text-apple-gray-900 break-all">
+                        {orderDetails?.payment?.transactionHash || transactionHash}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Payment Status</label>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-green-600 font-medium">
+                        {orderDetails?.payment?.status === 'paid' ? 'Confirmed' : 'Confirmed'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-apple-gray-600 mb-1">Order Status</label>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-blue-600 font-medium capitalize">
+                        {orderDetails?.status || 'Pending'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Order Items (if available) */}
+            {orderDetails?.items && orderDetails.items.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-apple-gray-200">
+                <h3 className="text-lg font-semibold text-apple-gray-900 mb-4">Order Items</h3>
+                <div className="space-y-3">
+                  {orderDetails.items.map((item, index) => (
+                    <div key={index} className="flex items-center space-x-4 p-3 bg-apple-gray-50 rounded-lg">
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded-lg"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <h4 className="font-medium text-apple-gray-900">{item.name}</h4>
+                        <p className="text-sm text-apple-gray-600">
+                          Quantity: {item.quantity} × ${(item.unitPrice || 0).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-apple-gray-900">
+                          ${(item.totalPrice || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* What's Next */}

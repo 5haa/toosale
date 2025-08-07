@@ -6,6 +6,9 @@ import DashboardLayout from './components/DashboardLayout';
 import NotFound from './components/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
+import AdminRoute from './components/AdminRoute';
+import AdminLayout from './components/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -91,6 +94,15 @@ function App() {
             <Route path="notifications" element={<Notifications />} />
             <Route path="support" element={<Support />} />
             <Route path="account" element={<Account />} />
+          </Route>
+
+          {/* Admin Routes - Admin Only */}
+          <Route path="/admin" element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }>
+            <Route index element={<AdminDashboard />} />
           </Route>
 
           {/* 404 Route */}

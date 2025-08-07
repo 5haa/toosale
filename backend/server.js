@@ -5,6 +5,12 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
+const storeRoutes = require('./routes/stores');
+const productRoutes = require('./routes/products');
+const walletRoutes = require('./routes/wallet');
+const orderRoutes = require('./routes/orders');
+const supportRoutes = require('./routes/support');
+const adminRoutes = require('./routes/admin');
 const { connectDB } = require('./config/database');
 
 const app = express();
@@ -35,11 +41,20 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
 // Test database connection
 connectDB();
 
 // Routes
 app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/stores', storeRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

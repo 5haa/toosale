@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import apiService from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 const WalletWithdraw = () => {
   const [amount, setAmount] = useState('');
@@ -12,19 +14,92 @@ const WalletWithdraw = () => {
   });
   const [paypalEmail, setPaypalEmail] = useState('');
   const [withdrawalSubmitted, setWithdrawalSubmitted] = useState(false);
+  const [wallet, setWallet] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [withdrawalId, setWithdrawalId] = useState(null);
 
-  const currentBalance = 2547.83;
   const minimumWithdrawal = 10.00;
 
-  const handleWithdrawalSubmit = (e) => {
+  useEffect(() => {
+    loadWalletData();
+  }, []);
+
+  const loadWalletData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const walletResponse = await apiService.getWallet();
+
+      if (walletResponse.success) {
+        setWallet(walletResponse.wallet);
+      }
+    } catch (err) {
+      console.error('Error loading wallet data:', err);
+      setError(err.message || 'Failed to load wallet data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWithdrawalSubmit = async (e) => {
     e.preventDefault();
-    if (amount && parseFloat(amount) >= minimumWithdrawal && parseFloat(amount) <= currentBalance) {
-      setWithdrawalSubmitted(true);
-      // Here you would typically make an API call to submit the withdrawal request
+    
+    if (!amount || parseFloat(amount) < minimumWithdrawal || parseFloat(amount) > wallet?.balance) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+
+      // Prepare withdrawal details based on method
+      let details = {};
+      if (withdrawalMethod === 'bank') {
+        details = bankDetails;
+      } else if (withdrawalMethod === 'paypal') {
+        details = { email: paypalEmail };
+      }
+
+      const response = await apiService.submitWithdrawal(
+        parseFloat(amount),
+        withdrawalMethod,
+        details
+      );
+
+      if (response.success) {
+        setWithdrawalSubmitted(true);
+        setWithdrawalId(response.transaction?.id);
+      }
+    } catch (err) {
+      console.error('Error submitting withdrawal:', err);
+      setError(err.message || 'Failed to submit withdrawal request');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const predefinedAmounts = [50, 100, 250, 500, 1000];
+
+  if (loading && !wallet) {
+    return <LoadingSpinner />;
+  }
+
+  if (error && !wallet) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Wallet</h1>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button onClick={loadWalletData} className="btn-apple">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (withdrawalSubmitted) {
     return (
@@ -62,7 +137,7 @@ const WalletWithdraw = () => {
               <div className="text-left space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-apple-gray-600">Request ID:</span>
-                  <span className="font-mono text-sm text-apple-gray-900">WD{Date.now().toString().slice(-6)}</span>
+                  <span className="font-mono text-sm text-apple-gray-900">WD{withdrawalId || Date.now().toString().slice(-6)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-apple-gray-600">Amount:</span>
@@ -81,7 +156,7 @@ const WalletWithdraw = () => {
                 <div className="border-t border-apple-gray-200 pt-3">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-apple-gray-900">Remaining Balance:</span>
-                    <span className="font-bold text-apple-blue">${(currentBalance - parseFloat(amount)).toFixed(2)}</span>
+                    <span className="font-bold text-apple-blue">${((wallet?.balance || 0) - parseFloat(amount)).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -136,7 +211,7 @@ const WalletWithdraw = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-apple-gray-600">Available Balance</p>
-              <p className="text-3xl font-bold text-apple-gray-900">${currentBalance.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-apple-gray-900">${(wallet?.balance || 0).toFixed(2)}</p>
               <p className="text-sm text-apple-gray-500 mt-1">Minimum withdrawal: ${minimumWithdrawal.toFixed(2)}</p>
             </div>
             <div className="w-12 h-12 bg-apple-blue rounded-xl flex items-center justify-center">
@@ -161,7 +236,7 @@ const WalletWithdraw = () => {
                   type="number"
                   step="0.01"
                   min={minimumWithdrawal}
-                  max={currentBalance}
+                  max={wallet?.balance || 0}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="block w-full pl-8 pr-3 py-3 text-lg border border-apple-gray-300 rounded-xl focus:ring-apple-blue focus:border-apple-blue"
@@ -169,7 +244,7 @@ const WalletWithdraw = () => {
                   required
                 />
               </div>
-              {amount && parseFloat(amount) > currentBalance && (
+              {amount && parseFloat(amount) > (wallet?.balance || 0) && (
                 <p className="text-red-500 text-sm mt-1">Amount exceeds available balance</p>
               )}
               {amount && parseFloat(amount) < minimumWithdrawal && parseFloat(amount) > 0 && (
@@ -186,7 +261,7 @@ const WalletWithdraw = () => {
                     key={preAmount}
                     type="button"
                     onClick={() => setAmount(preAmount.toString())}
-                    disabled={preAmount > currentBalance}
+                    disabled={preAmount > (wallet?.balance || 0)}
                     className="py-2 px-3 text-sm font-medium text-apple-gray-700 bg-apple-gray-100 hover:bg-apple-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     ${preAmount}
@@ -321,7 +396,7 @@ const WalletWithdraw = () => {
             )}
 
             {/* Preview */}
-            {amount && parseFloat(amount) >= minimumWithdrawal && parseFloat(amount) <= currentBalance && (
+            {amount && parseFloat(amount) >= minimumWithdrawal && parseFloat(amount) <= (wallet?.balance || 0) && (
               <div className="mb-6 p-4 bg-apple-gray-50 rounded-xl">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-apple-gray-600">Withdrawal amount:</span>
@@ -333,12 +408,27 @@ const WalletWithdraw = () => {
                 </div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-apple-gray-600">Current balance:</span>
-                  <span className="font-semibold text-apple-gray-900">${currentBalance.toFixed(2)}</span>
+                  <span className="font-semibold text-apple-gray-900">${(wallet?.balance || 0).toFixed(2)}</span>
                 </div>
                 <div className="border-t border-apple-gray-200 pt-2">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-apple-gray-900">Remaining balance:</span>
-                    <span className="font-bold text-apple-blue">${(currentBalance - parseFloat(amount)).toFixed(2)}</span>
+                    <span className="font-bold text-apple-blue">${((wallet?.balance || 0) - parseFloat(amount)).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-red-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-red-800">Error</p>
+                    <p className="text-sm text-red-700">{error}</p>
                   </div>
                 </div>
               </div>
@@ -347,15 +437,16 @@ const WalletWithdraw = () => {
             <button
               type="submit"
               disabled={
+                submitting ||
                 !amount || 
                 parseFloat(amount) < minimumWithdrawal || 
-                parseFloat(amount) > currentBalance ||
+                parseFloat(amount) > (wallet?.balance || 0) ||
                 (withdrawalMethod === 'bank' && (!bankDetails.accountName || !bankDetails.accountNumber || !bankDetails.bankName || !bankDetails.routingNumber)) ||
                 (withdrawalMethod === 'paypal' && !paypalEmail)
               }
               className="btn-apple w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Submit Withdrawal Request
+              {submitting ? 'Submitting...' : 'Submit Withdrawal Request'}
             </button>
           </form>
         </div>

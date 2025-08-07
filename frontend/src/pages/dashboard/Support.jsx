@@ -1,8 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import apiService from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 const Support = () => {
   const [activeTab, setActiveTab] = useState('tickets');
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [tickets, setTickets] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   const [newTicket, setNewTicket] = useState({
     subject: '',
@@ -11,7 +23,115 @@ const Support = () => {
     description: ''
   });
 
-  const tickets = [
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  useEffect(() => {
+    if (selectedTicket) {
+      fetchTicketMessages(selectedTicket.id);
+    }
+  }, [selectedTicket]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const fetchTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getSupportTickets();
+      if (response.success) {
+        setTickets(response.tickets);
+      }
+    } catch (error) {
+      console.error('Failed to fetch tickets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTicketMessages = async (ticketId) => {
+    try {
+      setMessageLoading(true);
+      const response = await apiService.getSupportTicket(ticketId);
+      if (response.success) {
+        setMessages(response.messages || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const handleCreateTicket = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await apiService.createSupportTicket(newTicket);
+      if (response.success) {
+        setShowNewTicketForm(false);
+        setNewTicket({ subject: '', category: 'general', priority: 'medium', description: '' });
+        await fetchTickets();
+        // Select the new ticket
+        setSelectedTicket(response.ticket);
+      }
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() && !selectedFile) return;
+
+    try {
+      setSendingMessage(true);
+      const messageType = selectedFile ? (selectedFile.type.startsWith('image/') ? 'image' : 'file') : 'text';
+      
+      const response = await apiService.addSupportMessage(
+        selectedTicket.id,
+        newMessage,
+        selectedFile,
+        messageType
+      );
+      
+      if (response.success) {
+        setNewMessage('');
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        // Refresh messages
+        await fetchTicketMessages(selectedTicket.id);
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const staticTickets = [
     {
       id: '#ST-001',
       subject: 'Payment issue with order #1024',
@@ -99,13 +219,8 @@ const Support = () => {
     }
   ];
 
-  const handleSubmitTicket = (e) => {
-    e.preventDefault();
-    // In a real app, this would submit to the backend
-    console.log('Submitting ticket:', newTicket);
-    setShowNewTicketForm(false);
-    setNewTicket({ subject: '', category: 'general', priority: 'medium', description: '' });
-  };
+  // Keep old handler name for form compatibility
+  const handleSubmitTicket = handleCreateTicket;
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
@@ -124,6 +239,191 @@ const Support = () => {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  // If a ticket is selected, show chat interface
+  if (selectedTicket) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        {/* Chat Header */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <button
+              onClick={() => setSelectedTicket(null)}
+              className="mr-4 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-apple-gray-900">{selectedTicket.ticket_number}</h1>
+              <p className="text-apple-gray-600">{selectedTicket.subject}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedTicket.status)}`}>
+              {selectedTicket.status}
+            </span>
+            <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getPriorityColor(selectedTicket.priority)}`}>
+              {selectedTicket.priority} Priority
+            </span>
+          </div>
+        </div>
+
+        {/* Chat Interface */}
+        <div className="bg-white rounded-xl shadow-sm border border-apple-gray-200 h-[600px] flex flex-col">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {messageLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <LoadingSpinner />
+              </div>
+            ) : messages.length > 0 ? (
+              messages.map((message, index) => (
+                <div
+                  key={message.id || index}
+                  className={`flex ${message.sender_role === 'admin' ? 'justify-start' : 'justify-end'}`}
+                >
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    message.sender_role === 'admin' 
+                      ? 'bg-gray-100 text-gray-900' 
+                      : 'bg-apple-blue text-white'
+                  }`}>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="text-sm font-medium">
+                        {message.sender_name}
+                      </span>
+                      {message.sender_role === 'admin' && (
+                        <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded">
+                          Support
+                        </span>
+                      )}
+                    </div>
+                    
+                    {message.message && (
+                      <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                    )}
+                    
+                    {message.file_url && (
+                      <div className="mt-2">
+                        {message.message_type === 'image' ? (
+                          <img
+                            src={`http://localhost:5000${message.file_url}`}
+                            alt="Attachment"
+                            className="max-w-full h-auto rounded"
+                          />
+                        ) : (
+                          <a
+                            href={`http://localhost:5000${message.file_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-2 text-sm underline"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                            <span>{message.file_name}</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    
+                    <p className="text-xs opacity-75 mt-1">
+                      {new Date(message.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-gray-500">No messages yet</p>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Message Input */}
+          <div className="border-t border-gray-200 p-4">
+            <form onSubmit={handleSendMessage} className="space-y-3">
+              {selectedFile && (
+                <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    <span className="text-sm text-gray-700">{selectedFile.name}</span>
+                    <span className="text-xs text-gray-500">({formatFileSize(selectedFile.size)})</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              
+              <div className="flex items-end space-x-3">
+                <div className="flex-1">
+                  <textarea
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    rows="2"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent resize-none"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept=".png,.jpg,.jpeg,.gif,.pdf,.txt,.doc,.docx"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                  </button>
+                  
+                  <button
+                    type="submit"
+                    disabled={(!newMessage.trim() && !selectedFile) || sendingMessage}
+                    className="px-4 py-2 bg-apple-blue text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {sendingMessage ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
@@ -399,7 +699,7 @@ const Support = () => {
             </div>
             
             <div className="space-y-4">
-              {tickets.map((ticket) => (
+              {(tickets.length > 0 ? tickets : staticTickets).map((ticket) => (
                 <div key={ticket.id} className="border border-apple-gray-200 rounded-xl p-6 hover:shadow-md transition-all duration-200">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
@@ -442,11 +742,17 @@ const Support = () => {
                     </div>
                     
                     <div className="flex space-x-2">
-                      <button className="px-4 py-2 bg-apple-gray-100 text-apple-gray-700 rounded-lg hover:bg-apple-gray-200 transition-colors text-sm font-medium">
-                        View Details
+                      <button
+                        onClick={() => setSelectedTicket(ticket)}
+                        className="px-4 py-2 bg-apple-blue text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        Open Chat
                       </button>
-                      {ticket.status !== 'Resolved' && (
-                        <button className="px-4 py-2 bg-apple-blue text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+                      {ticket.status !== 'Resolved' && tickets.length > 0 && (
+                        <button
+                          onClick={() => setSelectedTicket(ticket)}
+                          className="px-4 py-2 bg-apple-gray-100 text-apple-gray-700 rounded-lg hover:bg-apple-gray-200 transition-colors text-sm font-medium"
+                        >
                           Add Reply
                         </button>
                       )}

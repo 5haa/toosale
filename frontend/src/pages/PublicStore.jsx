@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import Cart from '../components/Cart';
+import api from '../services/api';
 
 const PublicStore = () => {
   const { storeName } = useParams();
@@ -9,145 +10,39 @@ const PublicStore = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [error, setError] = useState(null);
   
   const { items: cartItems, cartCount, addToCart, updateQuantity, removeFromCart } = useCart();
 
-  // Mock store data - in real app, this would come from API
-  const mockStoreData = {
-    'my-awesome-store': {
-      name: 'My Awesome Store',
-      description: 'Premium products at unbeatable prices',
-      owner: 'John Doe',
-      logo: null,
-      products: [
-        {
-          id: 1,
-          name: 'Premium Wireless Headphones',
-          price: 299,
-          originalPrice: 399,
-          rating: 4.8,
-          reviews: 1243,
-          image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop',
-          category: 'Electronics',
-          description: 'Premium wireless headphones with active noise cancellation and superior sound quality.',
-          badge: 'Trending',
-          images: [
-            'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1484704849700-f032a568e944?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800&h=600&fit=crop'
-          ],
-          colors: ['Black', 'White', 'Silver'],
-          inStock: true,
-          stockCount: 15
-        },
-        {
-          id: 2,
-          name: 'Smart Fitness Watch',
-          price: 249,
-          originalPrice: 349,
-          rating: 4.6,
-          reviews: 856,
-          image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=400&h=400&fit=crop',
-          category: 'Electronics',
-          description: 'Track your fitness goals with this advanced smartwatch featuring heart rate monitoring, GPS, and 7-day battery life.',
-          badge: 'Best Seller',
-          images: [
-            'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1434494878577-86c23bcb06b9?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800&h=600&fit=crop'
-          ],
-          colors: ['Black', 'Blue', 'Rose Gold'],
-          sizes: ['38mm', '42mm'],
-          inStock: true,
-          stockCount: 8
-        },
-        {
-          id: 3,
-          name: 'Designer Sunglasses',
-          price: 159,
-          originalPrice: 229,
-          rating: 4.7,
-          reviews: 567,
-          image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=400&h=400&fit=crop',
-          category: 'Fashion',
-          description: 'Stylish designer sunglasses with UV protection and premium build quality.',
-          badge: 'Sale',
-          images: [
-            'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1556306535-0f09a537f0a3?w=800&h=600&fit=crop'
-          ],
-          colors: ['Black', 'Tortoise', 'Gold'],
-          inStock: true,
-          stockCount: 25
-        },
-        {
-          id: 4,
-          name: 'Minimalist Backpack',
-          price: 89,
-          originalPrice: 129,
-          rating: 4.5,
-          reviews: 342,
-          image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop',
-          category: 'Fashion',
-          description: 'Clean, minimalist design backpack perfect for work, travel, or everyday use.',
-          images: [
-            'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&h=600&fit=crop'
-          ],
-          colors: ['Black', 'Gray', 'Navy'],
-          inStock: true,
-          stockCount: 12
-        },
-        {
-          id: 5,
-          name: 'Wireless Speaker',
-          price: 199,
-          originalPrice: 279,
-          rating: 4.9,
-          reviews: 1876,
-          image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=400&fit=crop',
-          category: 'Electronics',
-          description: 'Portable wireless speaker with rich sound and long battery life.',
-          images: [
-            'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800&h=600&fit=crop'
-          ],
-          colors: ['Black', 'White', 'Blue'],
-          inStock: true,
-          stockCount: 20
-        },
-        {
-          id: 6,
-          name: 'Ceramic Plant Pot Set',
-          price: 45,
-          originalPrice: 69,
-          rating: 4.4,
-          reviews: 234,
-          image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&h=400&fit=crop',
-          category: 'Home',
-          description: 'Beautiful ceramic plant pots to brighten up your living space.',
-          images: [
-            'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=800&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=600&fit=crop'
-          ],
-          colors: ['White', 'Terracotta', 'Gray'],
-          inStock: true,
-          stockCount: 30
-        }
-      ]
+  // Fetch store data
+  useEffect(() => {
+    fetchStoreData();
+  }, [storeName]);
+
+  const fetchStoreData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await api.getPublicStore(storeName);
+      
+      if (response.success) {
+        setStore(response.store);
+      } else {
+        setError('Store not found');
+        setStore(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch store data:', err);
+      setError('Failed to load store');
+      setStore(null);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const storeData = mockStoreData[storeName];
-      setStore(storeData);
-      setLoading(false);
-    }, 500);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeName]);
+  // Remove the mock store data object since we're now using real API
+
 
   const handleAddToCart = (product) => {
     addToCart(product);
@@ -180,7 +75,7 @@ const PublicStore = () => {
   const filteredProducts = store?.products.filter(product => 
     searchQuery === '' || 
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchQuery.toLowerCase())
+    product.category?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
   if (loading) {
@@ -194,7 +89,7 @@ const PublicStore = () => {
     );
   }
 
-  if (!store) {
+  if (error || !store) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -204,7 +99,11 @@ const PublicStore = () => {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-apple-gray-900 mb-2">Store Not Found</h1>
-          <p className="text-apple-gray-600 mb-6">The store you're looking for doesn't exist.</p>
+          <p className="text-apple-gray-600 mb-6">
+            {error === 'Failed to load store' 
+              ? 'Unable to load store data. Please try again later.' 
+              : 'The store you\'re looking for doesn\'t exist or is not public.'}
+          </p>
           <a href="/" className="btn-apple">
             Go Back Home
           </a>
@@ -221,9 +120,9 @@ const PublicStore = () => {
           <div className="flex items-center justify-between h-14">
             {/* Store Logo/Name */}
             <div className="flex items-center space-x-3">
-              {store.logo ? (
+              {store.logoUrl ? (
                 <img
-                  src={store.logo}
+                  src={store.logoUrl}
                   alt={`${store.name} logo`}
                   className="w-8 h-8 rounded-lg"
                 />
@@ -319,7 +218,7 @@ const PublicStore = () => {
             <div key={product.id} className="group cursor-pointer" onClick={() => window.location.href = `/product/${product.id}`}>
               <div className="aspect-square bg-apple-gray-100 rounded-2xl overflow-hidden mb-4 group-hover:shadow-xl transition-shadow duration-300 relative">
                 <img
-                  src={product.image}
+                  src={product.imageUrl}
                   alt={product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -331,13 +230,14 @@ const PublicStore = () => {
                       -{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
                     </span>
                   )}
-                  {product.badge && (
-                    <span className={`text-white text-xs font-medium px-2 py-1 rounded-full shadow-lg ${
-                      product.badge === 'Best Seller' ? 'bg-green-500' :
-                      product.badge === 'Trending' ? 'bg-purple-500' :
-                      'bg-blue-500'
-                    }`}>
-                      {product.badge}
+                  {product.isFeatured && (
+                    <span className="bg-purple-500 text-white text-xs font-medium px-2 py-1 rounded-full shadow-lg">
+                      Featured
+                    </span>
+                  )}
+                  {product.fastShipping && (
+                    <span className="bg-green-500 text-white text-xs font-medium px-2 py-1 rounded-full shadow-lg">
+                      🚀 Fast Ship
                     </span>
                   )}
                 </div>
@@ -366,7 +266,7 @@ const PublicStore = () => {
                     {renderStars(product.rating)}
                   </div>
                   <span className="text-sm text-apple-gray-500 ml-1">
-                    ({product.reviews?.toLocaleString()})
+                    ({product.reviewCount?.toLocaleString()})
                   </span>
                 </div>
                 <div className="flex items-center justify-center space-x-2">

@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
+import apiService from '../services/api';
 
 const Checkout = () => {
   const navigate = useNavigate();
   const { items: cartItems, cartTotal, clearCart } = useCart();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
     email: '',
     firstName: '',
@@ -66,29 +70,70 @@ const Checkout = () => {
     }
   };
 
-  const handlePaymentSubmit = () => {
+  const handlePaymentSubmit = async () => {
     if (!paymentInfo.transactionHash.trim()) {
       alert('Please enter your transaction hash');
       return;
     }
     
-    // Simulate payment verification
+    setIsCreatingOrder(true);
     setPaymentInfo(prev => ({ ...prev, paymentStatus: 'processing' }));
     
-    setTimeout(() => {
-      setPaymentInfo(prev => ({ ...prev, paymentStatus: 'confirmed' }));
-      setTimeout(() => {
-        clearCart();
-        navigate('/order-success', { 
-          state: { 
-            orderNumber: 'ORD-' + Date.now(),
-            total: total,
-            usdtAmount: usdtAmount,
-            transactionHash: paymentInfo.transactionHash
-          }
-        });
-      }, 2000);
-    }, 3000);
+    try {
+      // Prepare order data
+      const orderData = {
+        customerInfo,
+        items: cartItems.map(item => ({
+          id: item.id,
+          price: item.price,
+          quantity: item.quantity,
+          options: item.options || {}
+        })),
+        totals: {
+          subtotal: cartTotal,
+          shipping: shipping,
+          tax: tax,
+          total: total
+        },
+        paymentInfo: {
+          method: 'USDT',
+          currency: 'USDT',
+          amount: usdtAmount,
+          transactionHash: paymentInfo.transactionHash
+        },
+        userId: user?.id || null
+      };
+
+      // Create the order
+      const response = await apiService.createOrder(orderData);
+      
+      if (response.success) {
+        setPaymentInfo(prev => ({ ...prev, paymentStatus: 'confirmed' }));
+        
+        // Wait a moment for visual feedback, then redirect
+        setTimeout(() => {
+          clearCart();
+          navigate('/order-success', { 
+            state: { 
+              orderNumber: response.order.orderNumber,
+              orderId: response.order.id,
+              total: total,
+              usdtAmount: usdtAmount,
+              transactionHash: paymentInfo.transactionHash,
+              customerInfo: customerInfo
+            }
+          });
+        }, 2000);
+      } else {
+        throw new Error(response.message || 'Failed to create order');
+      }
+    } catch (error) {
+      console.error('Order creation failed:', error);
+      setPaymentInfo(prev => ({ ...prev, paymentStatus: 'failed' }));
+      alert('Failed to create order. Please try again or contact support.');
+    } finally {
+      setIsCreatingOrder(false);
+    }
   };
 
   const copyToClipboard = (text) => {
@@ -443,14 +488,41 @@ const Checkout = () => {
                   </div>
                 )}
 
+                {paymentInfo.paymentStatus === 'failed' && (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-red-600 mb-2">Order Failed</h3>
+                    <p className="text-apple-gray-600 mb-6">
+                      There was an error processing your order. Please try again or contact support.
+                    </p>
+                    <button
+                      onClick={() => setPaymentInfo(prev => ({ ...prev, paymentStatus: 'pending' }))}
+                      className="px-6 py-2 bg-apple-blue text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
+
                 {paymentInfo.paymentStatus === 'pending' && (
                   <div className="text-center py-8">
                     <button
                       onClick={handlePaymentSubmit}
-                      disabled={!paymentInfo.transactionHash.trim()}
-                      className="px-8 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors disabled:bg-apple-gray-300 disabled:cursor-not-allowed"
+                      disabled={!paymentInfo.transactionHash.trim() || isCreatingOrder}
+                      className="px-8 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors disabled:bg-apple-gray-300 disabled:cursor-not-allowed flex items-center justify-center mx-auto"
                     >
-                      Confirm Payment
+                      {isCreatingOrder ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Creating Order...
+                        </>
+                      ) : (
+                        'Confirm Payment'
+                      )}
                     </button>
                   </div>
                 )}

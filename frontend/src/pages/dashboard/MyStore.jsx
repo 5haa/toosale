@@ -1,36 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../../services/api';
 
 const MyStore = () => {
-  const [storeSettings] = useState({
-    storeName: 'My Awesome Store',
-    storeDescription: 'Premium products at unbeatable prices',
+  const [store, setStore] = useState(null);
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showCreateStore, setShowCreateStore] = useState(false);
+  const [storeForm, setStoreForm] = useState({
+    name: '',
+    description: '',
     isPublic: true,
-    customDomain: ''
+    themeColor: '#007AFF'
   });
 
-  const storeProducts = [
-    {
-      id: 2,
-      name: 'Smart Fitness Watch',
-      price: 249,
-      originalPrice: 349,
-      commission: 38,
-      rating: 4.6,
-      reviews: 856,
-      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=300&h=300&fit=crop',
-      category: 'electronics',
-      sales: 23,
-      addedDate: '2024-01-10'
-    }
-  ];
+  // Fetch store data
+  useEffect(() => {
+    fetchStoreData();
+  }, []);
 
-  const storeStats = {
-    totalProducts: storeProducts.length,
-    totalViews: 1247,
-    totalSales: 23,
-    revenue: 874.00,
-    conversionRate: 1.8
+  const fetchStoreData = async () => {
+    try {
+      setLoading(true);
+      const response = await api.getMyStore();
+      
+      if (response.success && response.store) {
+        setStore(response.store);
+        // Fetch store products if store exists
+        const productsResponse = await api.getStoreProducts(response.store.id);
+        if (productsResponse.success) {
+          setStoreProducts(productsResponse.products || []);
+        }
+      } else {
+        setStore(null);
+        setStoreProducts([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch store data:', err);
+      setError('Failed to load store data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateStore = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const response = await api.createStore(storeForm);
+      
+      if (response.success) {
+        setStore(response.store);
+        setShowCreateStore(false);
+        setStoreForm({ name: '', description: '', isPublic: true, themeColor: '#007AFF' });
+      } else {
+        setError(response.message || 'Failed to create store');
+      }
+    } catch (err) {
+      console.error('Failed to create store:', err);
+      setError('Failed to create store');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveProduct = async (productId) => {
+    try {
+      await api.removeProductFromStore(store.id, productId);
+      setStoreProducts(prev => prev.filter(p => p.id !== productId));
+    } catch (err) {
+      console.error('Failed to remove product:', err);
+      setError('Failed to remove product');
+    }
   };
 
   const renderStars = (rating) => {
@@ -48,8 +90,132 @@ const MyStore = () => {
     ));
   };
 
+  if (loading) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-apple-blue mx-auto mb-4"></div>
+            <p className="text-apple-gray-600">Loading your store...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!store && !showCreateStore) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="text-center py-20">
+          <div className="w-20 h-20 bg-apple-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-apple-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-apple-gray-900 mb-4">Create Your Store</h1>
+          <p className="text-apple-gray-600 mb-8 max-w-md mx-auto">
+            Start selling by creating your own store. Add products, customize your brand, and start earning commissions.
+          </p>
+          <button 
+            onClick={() => setShowCreateStore(true)}
+            className="btn-apple px-8 py-3"
+          >
+            Create Store
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showCreateStore) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl mx-auto py-12">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-apple-gray-900 mb-4">Create Your Store</h1>
+            <p className="text-apple-gray-600">Fill in the details below to set up your store</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+              <p className="text-red-600">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleCreateStore} className="card-apple p-8">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-apple-gray-700 mb-2">
+                  Store Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={storeForm.name}
+                  onChange={(e) => setStoreForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="input-apple"
+                  placeholder="Enter your store name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-apple-gray-700 mb-2">
+                  Store Description
+                </label>
+                <textarea
+                  value={storeForm.description}
+                  onChange={(e) => setStoreForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="input-apple"
+                  rows="3"
+                  placeholder="Describe what your store offers"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isPublic"
+                  checked={storeForm.isPublic}
+                  onChange={(e) => setStoreForm(prev => ({ ...prev, isPublic: e.target.checked }))}
+                  className="h-4 w-4 text-apple-blue focus:ring-apple-blue border-apple-gray-300 rounded"
+                />
+                <label htmlFor="isPublic" className="ml-2 block text-sm text-apple-gray-700">
+                  Make store public (customers can discover and visit your store)
+                </label>
+              </div>
+
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateStore(false)}
+                  className="btn-apple-outline flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !storeForm.name}
+                  className="btn-apple flex-1"
+                >
+                  {loading ? 'Creating...' : 'Create Store'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 sm:px-6 lg:px-8">
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
@@ -61,7 +227,7 @@ const MyStore = () => {
             Store Settings
           </button>
           <a
-            href={`/store/${storeSettings.storeName.toLowerCase().replace(/\s+/g, '-')}`}
+            href={`/store/${store.slug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn-apple"
@@ -75,25 +241,25 @@ const MyStore = () => {
       <div className="card-apple p-6 mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-apple-gray-900">{storeSettings.storeName}</h2>
-            <p className="text-apple-gray-600">{storeSettings.storeDescription}</p>
+            <h2 className="text-2xl font-bold text-apple-gray-900">{store.name}</h2>
+            <p className="text-apple-gray-600">{store.description || 'No description set'}</p>
             <div className="flex items-center mt-2">
               <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                storeSettings.isPublic 
+                store.isPublic 
                   ? 'bg-green-100 text-green-800' 
                   : 'bg-yellow-100 text-yellow-800'
               }`}>
-                {storeSettings.isPublic ? '🌐 Public' : '🔒 Private'}
+                {store.isPublic ? '🌐 Public' : '🔒 Private'}
               </span>
               <span className="ml-3 text-sm text-apple-gray-500">
-                toosale.com/store/{storeSettings.storeName.toLowerCase().replace(/\s+/g, '-')}
+                toosale.com/store/{store.slug}
               </span>
             </div>
           </div>
           <div className="text-right">
             <div className="w-16 h-16 bg-gradient-to-r from-apple-blue to-blue-600 rounded-xl flex items-center justify-center">
               <span className="text-white text-xl font-bold">
-                {storeSettings.storeName.charAt(0)}
+                {store.name.charAt(0)}
               </span>
             </div>
           </div>
@@ -111,7 +277,7 @@ const MyStore = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-apple-gray-600">Products</p>
-              <p className="text-2xl font-bold text-apple-gray-900">{storeStats.totalProducts}</p>
+              <p className="text-2xl font-bold text-apple-gray-900">{store.productCount || 0}</p>
             </div>
           </div>
         </div>
@@ -126,7 +292,7 @@ const MyStore = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-apple-gray-600">Views</p>
-              <p className="text-2xl font-bold text-apple-gray-900">{storeStats.totalViews}</p>
+              <p className="text-2xl font-bold text-apple-gray-900">{store.analytics?.totalViews || 0}</p>
             </div>
           </div>
         </div>
@@ -140,7 +306,7 @@ const MyStore = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-apple-gray-600">Sales</p>
-              <p className="text-2xl font-bold text-apple-gray-900">{storeStats.totalSales}</p>
+              <p className="text-2xl font-bold text-apple-gray-900">{store.totalSales || 0}</p>
             </div>
           </div>
         </div>
@@ -153,8 +319,8 @@ const MyStore = () => {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-apple-gray-600">Revenue</p>
-              <p className="text-2xl font-bold text-apple-gray-900">${storeStats.revenue}</p>
+              <p className="text-sm font-medium text-apple-gray-600">Earnings</p>
+              <p className="text-2xl font-bold text-apple-gray-900">${store.totalEarnings?.toFixed(2) || '0.00'}</p>
             </div>
           </div>
         </div>
@@ -168,7 +334,7 @@ const MyStore = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-apple-gray-600">Conversion</p>
-              <p className="text-2xl font-bold text-apple-gray-900">{storeStats.conversionRate}%</p>
+              <p className="text-2xl font-bold text-apple-gray-900">{store.analytics?.conversionRate || 0}%</p>
             </div>
           </div>
         </div>
@@ -180,7 +346,7 @@ const MyStore = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-apple-gray-900">Store Products</h3>
             <Link
-              to="/dashboard/products"
+              to="/dashboard/browse-products"
               className="text-apple-blue hover:text-blue-600 font-medium text-sm transition-colors"
             >
               Browse More Products
@@ -194,7 +360,7 @@ const MyStore = () => {
               {storeProducts.map((product) => (
                 <div key={product.id} className="border border-apple-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
                   <img
-                    src={product.image}
+                    src={product.imageUrl}
                     alt={product.name}
                     className="w-full h-32 object-cover"
                   />
@@ -208,7 +374,7 @@ const MyStore = () => {
                         {renderStars(product.rating)}
                       </div>
                       <span className="text-sm text-apple-gray-500">
-                        ({product.reviews})
+                        ({product.reviewCount})
                       </span>
                     </div>
                     
@@ -217,12 +383,20 @@ const MyStore = () => {
                         ${product.price}
                       </span>
                       <span className="text-sm text-green-600 font-medium">
-                        {product.sales} sales
+                        ${(parseFloat(product.commissionAmount) || 0).toFixed(2)} commission
                       </span>
                     </div>
                     
-                    <div className="text-sm text-apple-gray-500">
-                      Added {product.addedDate}
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-apple-gray-500">
+                        Added {new Date(product.addedAt).toLocaleDateString()}
+                      </div>
+                      <button
+                        onClick={() => handleRemoveProduct(product.id)}
+                        className="text-red-600 hover:text-red-700 text-sm font-medium"
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -237,7 +411,7 @@ const MyStore = () => {
             <h3 className="text-lg font-medium text-apple-gray-900 mb-2">No products in your store yet</h3>
             <p className="text-apple-gray-600 mb-4">Start by browsing our product catalog and adding items to your store</p>
             <Link
-              to="/dashboard/products"
+              to="/dashboard/browse-products"
               className="btn-apple"
             >
               Browse Products

@@ -1,55 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import apiService from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 const Wallet = () => {
   const [activeTab, setActiveTab] = useState('balance');
+  const [wallet, setWallet] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const walletData = {
-    balance: 2547.83,
-    pendingEarnings: 342.50,
-    totalEarnings: 15847.32,
-    currency: 'USD'
+  useEffect(() => {
+    loadWalletData();
+  }, []);
+
+  const loadWalletData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load wallet info and transactions in parallel
+      const [walletResponse, transactionsResponse] = await Promise.all([
+        apiService.getWallet(),
+        apiService.getWalletTransactions(10, 0)
+      ]);
+
+      if (walletResponse.success) {
+        setWallet(walletResponse.wallet);
+      }
+
+      if (transactionsResponse.success) {
+        setTransactions(transactionsResponse.transactions);
+      }
+    } catch (err) {
+      console.error('Error loading wallet data:', err);
+      setError(err.message || 'Failed to load wallet data');
+      
+      // If wallet doesn't exist, try to create one
+      if (err.status === 404) {
+        try {
+          const createResponse = await apiService.createWallet();
+          if (createResponse.success) {
+            setWallet(createResponse.wallet);
+          }
+        } catch (createErr) {
+          console.error('Error creating wallet:', createErr);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const transactions = [
-    {
-      id: 1,
-      type: 'sale',
-      description: 'Product sale commission',
-      amount: 45.30,
-      date: '2024-01-15',
-      status: 'completed',
-      orderId: '#1001'
-    },
-    {
-      id: 2,
-      type: 'withdrawal',
-      description: 'Bank transfer',
-      amount: -200.00,
-      date: '2024-01-14',
-      status: 'completed',
-      reference: 'WD001'
-    },
-    {
-      id: 3,
-      type: 'sale',
-      description: 'Product sale commission',
-      amount: 78.90,
-      date: '2024-01-13',
-      status: 'completed',
-      orderId: '#1002'
-    },
-    {
-      id: 4,
-      type: 'pending',
-      description: 'Product sale commission',
-      amount: 23.50,
-      date: '2024-01-12',
-      status: 'pending',
-      orderId: '#1003'
-    }
-  ];
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error && !wallet) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Wallet</h1>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={loadWalletData}
+            className="btn-apple"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const getTransactionIcon = (type) => {
     switch (type) {
@@ -112,7 +135,7 @@ const Wallet = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-apple-gray-600">Available Balance</p>
-              <p className="text-3xl font-bold text-apple-gray-900">${walletData.balance.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-apple-gray-900">${wallet?.balance?.toFixed(2) || '0.00'}</p>
             </div>
           </div>
           <div className="mt-4 flex space-x-2">
@@ -141,8 +164,10 @@ const Wallet = () => {
               </div>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-apple-gray-600">Pending Earnings</p>
-              <p className="text-3xl font-bold text-apple-gray-900">${walletData.pendingEarnings.toFixed(2)}</p>
+              <p className="text-sm font-medium text-apple-gray-600">Wallet Address</p>
+              <p className="text-sm font-bold text-apple-gray-900 font-mono break-all">
+                {wallet?.address ? `${wallet.address.slice(0, 10)}...${wallet.address.slice(-8)}` : 'Not available'}
+              </p>
             </div>
           </div>
         </div>
@@ -157,8 +182,8 @@ const Wallet = () => {
               </div>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-apple-gray-600">Total Earnings</p>
-              <p className="text-3xl font-bold text-apple-gray-900">${walletData.totalEarnings.toFixed(2)}</p>
+              <p className="text-sm font-medium text-apple-gray-600">Total Transactions</p>
+              <p className="text-3xl font-bold text-apple-gray-900">{transactions.length}</p>
             </div>
           </div>
         </div>
@@ -206,27 +231,37 @@ const Wallet = () => {
           <div className="p-6">
             <h3 className="text-lg font-semibold text-apple-gray-900 mb-4">Recent Transactions</h3>
             <div className="space-y-4">
-              {transactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 bg-apple-gray-50 rounded-xl">
-                  <div className="flex items-center space-x-4">
-                    {getTransactionIcon(transaction.type)}
-                    <div>
-                      <p className="font-medium text-apple-gray-900">{transaction.description}</p>
-                      <p className="text-sm text-apple-gray-500">
-                        {transaction.date} • {transaction.orderId || transaction.reference}
+              {transactions.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="w-12 h-12 text-apple-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p className="text-apple-gray-500">No transactions yet</p>
+                  <p className="text-sm text-apple-gray-400 mt-1">Your transaction history will appear here</p>
+                </div>
+              ) : (
+                transactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between p-4 bg-apple-gray-50 rounded-xl">
+                    <div className="flex items-center space-x-4">
+                      {getTransactionIcon(transaction.type)}
+                      <div>
+                        <p className="font-medium text-apple-gray-900">{transaction.description || `${transaction.type} transaction`}</p>
+                        <p className="text-sm text-apple-gray-500">
+                          {new Date(transaction.createdAt).toLocaleDateString()} • ID: {transaction.id}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount || 0).toFixed(2)}
                       </p>
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(transaction.status)}`}>
+                        {transaction.status}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-semibold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
-                    </p>
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(transaction.status)}`}>
-                      {transaction.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}

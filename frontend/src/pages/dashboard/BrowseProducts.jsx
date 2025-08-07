@@ -1,119 +1,125 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
 
 const BrowseProducts = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('popular');
+  const [sortBy, setSortBy] = useState('rating');
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [store, setStore] = useState(null);
+  const [storeProducts, setStoreProducts] = useState(new Set());
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  const categories = [
-    { id: 'all', name: 'All Categories', icon: '🛍️' },
-    { id: 'electronics', name: 'Electronics', icon: '📱' },
-    { id: 'fashion', name: 'Fashion', icon: '👕' },
-    { id: 'home', name: 'Home & Garden', icon: '🏡' },
-    { id: 'beauty', name: 'Beauty', icon: '💄' },
-    { id: 'sports', name: 'Sports', icon: '⚽' },
-    { id: 'toys', name: 'Toys', icon: '🧸' },
-    { id: 'books', name: 'Books', icon: '📚' }
-  ];
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
 
-  const products = [
-    {
-      id: 1,
-      name: 'Wireless Bluetooth Headphones',
-      price: 299,
-      originalPrice: 399,
-      commission: 45,
-      rating: 4.8,
-      reviews: 1243,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop',
-      category: 'electronics',
-      inStore: false,
-      trending: true,
-      fastShipping: true
-    },
-    {
-      id: 2,
-      name: 'Smart Fitness Watch',
-      price: 249,
-      originalPrice: 349,
-      commission: 38,
-      rating: 4.6,
-      reviews: 856,
-      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=300&h=300&fit=crop',
-      category: 'electronics',
-      inStore: true,
-      trending: false,
-      fastShipping: true
-    },
-    {
-      id: 3,
-      name: 'Designer Sunglasses',
-      price: 159,
-      originalPrice: 229,
-      commission: 24,
-      rating: 4.7,
-      reviews: 567,
-      image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=300&h=300&fit=crop',
-      category: 'fashion',
-      inStore: false,
-      trending: true,
-      fastShipping: false
-    },
-    {
-      id: 4,
-      name: 'Minimalist Backpack',
-      price: 89,
-      originalPrice: 129,
-      commission: 13,
-      rating: 4.5,
-      reviews: 342,
-      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=300&fit=crop',
-      category: 'fashion',
-      inStore: false,
-      trending: false,
-      fastShipping: true
-    },
-    {
-      id: 5,
-      name: 'Wireless Speaker',
-      price: 199,
-      originalPrice: 279,
-      commission: 30,
-      rating: 4.9,
-      reviews: 1876,
-      image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=300&h=300&fit=crop',
-      category: 'electronics',
-      inStore: false,
-      trending: true,
-      fastShipping: true
-    },
-    {
-      id: 6,
-      name: 'Ceramic Plant Pot Set',
-      price: 45,
-      originalPrice: 69,
-      commission: 7,
-      rating: 4.4,
-      reviews: 234,
-      image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=300&h=300&fit=crop',
-      category: 'home',
-      inStore: false,
-      trending: false,
-      fastShipping: false
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch categories and store info in parallel
+      const [categoriesResponse, storeResponse] = await Promise.all([
+        api.getCategories(),
+        api.getMyStore().catch(() => ({ success: false })) // Don't fail if no store
+      ]);
+
+      if (categoriesResponse.success) {
+        const allCategories = [
+          { id: 'all', name: 'All Categories', slug: 'all', icon: '🛍️' },
+          ...categoriesResponse.categories
+        ];
+        setCategories(allCategories);
+      }
+
+      if (storeResponse.success && storeResponse.store) {
+        setStore(storeResponse.store);
+        // Get current store products
+        const storeProductsResponse = await api.getStoreProducts(storeResponse.store.id);
+        if (storeProductsResponse.success) {
+          setStoreProducts(new Set(storeProductsResponse.products.map(p => p.id)));
+        }
+      }
+
+      // Fetch initial products
+      await fetchProducts();
+      
+    } catch (err) {
+      console.error('Failed to fetch initial data:', err);
+      setError('Failed to load data');
+    } finally {
+      setLoading(false);
+      setInitialLoadComplete(true);
     }
-  ];
-
-  const [storeProducts, setStoreProducts] = useState(
-    products.filter(p => p.inStore).map(p => p.id)
-  );
-
-  const handleAddToStore = (productId) => {
-    setStoreProducts(prev => 
-      prev.includes(productId) 
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
   };
+
+  const fetchProducts = async () => {
+    try {
+      const params = {
+        sortBy: sortBy === 'popular' ? 'rating' : sortBy,
+        sortOrder: 'DESC',
+        limit: 50
+      };
+
+      // Only add search parameter if there's actually a search query
+      if (searchQuery && searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+
+      // Only add category parameter if it's not 'all'
+      if (selectedCategory && selectedCategory !== 'all') {
+        params.category = selectedCategory;
+      }
+
+      const response = await api.getProducts(params);
+      
+      if (response.success) {
+        setProducts(response.products || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+      setError('Failed to load products');
+    }
+  };
+
+  // Refetch products when filters change
+  useEffect(() => {
+    if (initialLoadComplete) {
+      fetchProducts();
+    }
+  }, [searchQuery, selectedCategory, sortBy, initialLoadComplete]);
+
+  const handleAddToStore = async (productId) => {
+    if (!store) {
+      setError('You need to create a store first');
+      return;
+    }
+
+    try {
+      const isInStore = storeProducts.has(productId);
+      
+      if (isInStore) {
+        await api.removeProductFromStore(store.id, productId);
+        setStoreProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+      } else {
+        await api.addProductToStore(store.id, { productId });
+        setStoreProducts(prev => new Set([...prev, productId]));
+      }
+    } catch (err) {
+      console.error('Failed to update store product:', err);
+      setError('Failed to update product in store');
+    }
+  };
+
+
 
   const renderStars = (rating) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -130,18 +136,41 @@ const BrowseProducts = () => {
     ));
   };
 
-  const filteredProducts = products.filter(product => {
-    if (selectedCategory !== 'all' && product.category !== selectedCategory) return false;
-    if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  if (loading) {
+    return (
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-apple-blue mx-auto mb-4"></div>
+            <p className="text-apple-gray-600">Loading products...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+          <p className="text-red-600">{error}</p>
+          <button 
+            onClick={() => setError(null)}
+            className="text-red-700 underline text-sm mt-2"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-apple-gray-900">Browse Products</h1>
-        <p className="text-apple-gray-600 mt-2">Discover products to add to your store</p>
+        <p className="text-apple-gray-600 mt-2">
+          Discover products to add to your store
+          {store ? ` (${storeProducts.size} products in your store)` : ' (Create a store to start adding products)'}
+        </p>
       </div>
 
       {/* Search and Filters */}
@@ -161,11 +190,10 @@ const BrowseProducts = () => {
             onChange={(e) => setSortBy(e.target.value)}
             className="px-4 py-3 border border-apple-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-apple-blue"
           >
-            <option value="popular">Most Popular</option>
-            <option value="commission">Highest Commission</option>
-            <option value="price-low">Price: Low to High</option>
-            <option value="price-high">Price: High to Low</option>
             <option value="rating">Highest Rated</option>
+            <option value="review_count">Most Reviews</option>
+            <option value="price">Price: Low to High</option>
+            <option value="created_at">Newest First</option>
           </select>
         </div>
       </div>
@@ -176,10 +204,10 @@ const BrowseProducts = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
           {categories.map((category) => (
             <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
+              key={category.id || category.slug}
+              onClick={() => setSelectedCategory(category.slug || category.id)}
               className={`p-4 rounded-xl text-center transition-all duration-200 ${
-                selectedCategory === category.id
+                selectedCategory === (category.slug || category.id)
                   ? 'bg-apple-blue text-white shadow-lg transform scale-105'
                   : 'bg-white border border-apple-gray-200 hover:bg-apple-gray-50 hover:shadow-md'
               }`}
@@ -192,15 +220,16 @@ const BrowseProducts = () => {
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProducts.map((product) => {
-          const isInStore = storeProducts.includes(product.id);
+      {products.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {products.map((product) => {
+          const isInStore = storeProducts.has(product.id);
           
           return (
             <div key={product.id} className="card-apple overflow-hidden group">
               <div className="relative">
                 <img
-                  src={product.image}
+                  src={product.imageUrl}
                   alt={product.name}
                   className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -238,8 +267,8 @@ const BrowseProducts = () => {
                   <div className="flex items-center">
                     {renderStars(product.rating)}
                   </div>
-                  <span className="text-sm text-apple-gray-500">
-                    {product.rating} ({product.reviews})
+                                      <span className="text-sm text-apple-gray-500">
+                    {product.rating} ({product.reviewCount})
                   </span>
                 </div>
                 
@@ -256,33 +285,62 @@ const BrowseProducts = () => {
                   </div>
                   <div className="text-right">
                     <span className="text-sm text-green-600 font-medium">
-                      ${product.commission} commission
+                      ${(parseFloat(product.commissionAmount) || 0).toFixed(2)} commission
                     </span>
                   </div>
                 </div>
                 
                 <button
                   onClick={() => handleAddToStore(product.id)}
+                  disabled={!store}
                   className={`w-full py-2 px-4 rounded-xl font-medium transition-colors ${
-                    isInStore
+                    !store
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isInStore
                       ? 'bg-red-100 text-red-700 hover:bg-red-200'
                       : 'bg-apple-blue text-white hover:bg-blue-600'
                   }`}
                 >
-                  {isInStore ? 'Remove from Store' : 'Add to Store'}
+                  {!store ? 'Create Store First' : isInStore ? 'Remove from Store' : 'Add to Store'}
                 </button>
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-20">
+          <div className="w-20 h-20 bg-apple-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-apple-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-2.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 009.586 13H7" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-apple-gray-900 mb-2">No products found</h3>
+          <p className="text-apple-gray-600 mb-6">
+            {searchQuery ? 'Try adjusting your search or filters' : 'No products available in this category'}
+          </p>
+          {searchQuery && (
+            <button 
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="btn-apple-outline"
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Load More */}
-      <div className="mt-12 text-center">
-        <button className="btn-apple-outline px-8 py-3">
-          Load More Products
-        </button>
-      </div>
+      {/* Load More - Only show if we have products */}
+      {products.length > 0 && (
+        <div className="mt-12 text-center">
+          <p className="text-apple-gray-600 text-sm">
+            Showing {products.length} products. More features coming soon!
+          </p>
+        </div>
+      )}
     </div>
   );
 };

@@ -3,8 +3,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { query } = require('../config/database');
+const WalletService = require('../services/walletService');
 
 const router = express.Router();
+const walletService = new WalletService();
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -84,6 +86,15 @@ router.post('/signup', validateSignup, async (req, res) => {
 
     const user = result.rows[0];
 
+    // Create wallet for the new user
+    let wallet = null;
+    try {
+      wallet = await walletService.createUserWallet(user.id);
+    } catch (walletError) {
+      console.error('Error creating wallet for new user:', walletError);
+      // Don't fail registration if wallet creation fails, but log it
+    }
+
     // Generate JWT token
     const token = generateToken(user.id);
 
@@ -91,13 +102,15 @@ router.post('/signup', validateSignup, async (req, res) => {
       success: true,
       message: 'Account created successfully',
       token,
-      user: {
-        id: user.id,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        email: user.email,
-        createdAt: user.created_at
-      }
+              user: {
+          id: user.id,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          email: user.email,
+          role: 'user',
+          createdAt: user.created_at
+        },
+      wallet: wallet
     });
 
   } catch (error) {
@@ -126,7 +139,7 @@ router.post('/login', validateLogin, async (req, res) => {
 
     // Find user by email
     const result = await query(
-      'SELECT id, first_name, last_name, email, password_hash FROM users WHERE email = $1',
+      'SELECT id, first_name, last_name, email, password_hash, role FROM users WHERE email = $1',
       [email]
     );
 
@@ -165,7 +178,8 @@ router.post('/login', validateLogin, async (req, res) => {
         id: user.id,
         firstName: user.first_name,
         lastName: user.last_name,
-        email: user.email
+        email: user.email,
+        role: user.role || 'user'
       }
     });
 
@@ -205,7 +219,7 @@ const verifyToken = (req, res, next) => {
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, first_name, last_name, email, created_at, last_login FROM users WHERE id = $1',
+      'SELECT id, first_name, last_name, email, role, created_at, last_login FROM users WHERE id = $1',
       [req.userId]
     );
 
@@ -225,6 +239,7 @@ router.get('/me', verifyToken, async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         email: user.email,
+        role: user.role || 'user',
         createdAt: user.created_at,
         lastLogin: user.last_login
       }
