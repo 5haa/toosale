@@ -9,6 +9,12 @@ import PublicRoute from './components/PublicRoute';
 import AdminRoute from './components/AdminRoute';
 import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminStores from './pages/admin/AdminStores';
+import AdminOrders from './pages/admin/AdminOrders';
+import AdminSupport from './pages/admin/AdminSupport';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
+import AdminWithdrawals from './pages/admin/AdminWithdrawals';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -25,6 +31,8 @@ import BrowseProducts from './pages/dashboard/BrowseProducts';
 import MyStore from './pages/dashboard/MyStore';
 import Orders from './pages/dashboard/Orders';
 import Wallet from './pages/dashboard/Wallet';
+import WalletDeposit from './pages/dashboard/WalletDeposit';
+import WalletWithdraw from './pages/dashboard/WalletWithdraw';
 import Notifications from './pages/dashboard/Notifications';
 import Support from './pages/dashboard/Support';
 import Account from './pages/dashboard/Account';
@@ -91,6 +99,8 @@ function App() {
             <Route path="my-store" element={<MyStore />} />
             <Route path="orders" element={<Orders />} />
             <Route path="wallet" element={<Wallet />} />
+            <Route path="wallet/deposit" element={<WalletDeposit />} />
+            <Route path="wallet/withdraw" element={<WalletWithdraw />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="support" element={<Support />} />
             <Route path="account" element={<Account />} />
@@ -103,6 +113,12 @@ function App() {
             </AdminRoute>
           }>
             <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="stores" element={<AdminStores />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="support" element={<AdminSupport />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="withdrawals" element={<AdminWithdrawals />} />
           </Route>
 
           {/* 404 Route */}

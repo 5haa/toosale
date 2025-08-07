@@ -23,6 +23,8 @@ const Support = () => {
     description: ''
   });
 
+  const normalizeStatus = (value) => String(value || '').toLowerCase().replace('-', '_').replace(' ', '_');
+
   useEffect(() => {
     fetchTickets();
   }, []);
@@ -61,6 +63,8 @@ const Support = () => {
       const response = await apiService.getSupportTicket(ticketId);
       if (response.success) {
         setMessages(response.messages || []);
+        // Ensure selectedTicket stays in sync with any updated fields
+        setSelectedTicket((prev) => (prev && prev.id === response.ticket.id ? { ...prev, ...response.ticket } : prev));
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
@@ -223,15 +227,19 @@ const Support = () => {
   const handleSubmitTicket = handleCreateTicket;
 
   const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
+    if (!status) return 'bg-gray-100 text-gray-800';
+    const normalized = String(status).toLowerCase().replace('-', '_').replace(' ', '_');
+    switch (normalized) {
       case 'open': return 'bg-red-100 text-red-800';
-      case 'in progress': return 'bg-yellow-100 text-yellow-800';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800';
       case 'resolved': return 'bg-green-100 text-green-800';
+      case 'closed': return 'bg-gray-200 text-gray-700';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPriorityColor = (priority) => {
+    if (!priority) return 'bg-gray-100 text-gray-800';
     switch (priority.toLowerCase()) {
       case 'high': return 'bg-red-100 text-red-800';
       case 'medium': return 'bg-yellow-100 text-yellow-800';
@@ -308,17 +316,17 @@ const Support = () => {
                       <p className="text-sm whitespace-pre-wrap">{message.message}</p>
                     )}
                     
-                    {message.file_url && (
+            {message.file_url && (
                       <div className="mt-2">
                         {message.message_type === 'image' ? (
                           <img
-                            src={`http://localhost:5000${message.file_url}`}
+                            src={apiService.buildFileUrl(message.file_url)}
                             alt="Attachment"
                             className="max-w-full h-auto rounded"
                           />
                         ) : (
                           <a
-                            href={`http://localhost:5000${message.file_url}`}
+                          href={apiService.buildFileUrl(message.file_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center space-x-2 text-sm underline"
@@ -457,7 +465,7 @@ const Support = () => {
             <div>
               <p className="text-sm text-apple-gray-600">Open Tickets</p>
               <p className="text-2xl font-bold text-apple-gray-900">
-                {tickets.filter(t => t.status === 'Open').length}
+                {tickets.filter(t => normalizeStatus(t.status) === 'open').length}
               </p>
             </div>
           </div>
@@ -473,7 +481,7 @@ const Support = () => {
             <div>
               <p className="text-sm text-apple-gray-600">In Progress</p>
               <p className="text-2xl font-bold text-apple-gray-900">
-                {tickets.filter(t => t.status === 'In Progress').length}
+                {tickets.filter(t => normalizeStatus(t.status) === 'in_progress').length}
               </p>
             </div>
           </div>
@@ -489,7 +497,7 @@ const Support = () => {
             <div>
               <p className="text-sm text-apple-gray-600">Resolved</p>
               <p className="text-2xl font-bold text-apple-gray-900">
-                {tickets.filter(t => t.status === 'Resolved').length}
+                {tickets.filter(t => normalizeStatus(t.status) === 'resolved').length}
               </p>
             </div>
           </div>
@@ -699,22 +707,31 @@ const Support = () => {
             </div>
             
             <div className="space-y-4">
-              {(tickets.length > 0 ? tickets : staticTickets).map((ticket) => (
+              {(tickets.length > 0 ? tickets : staticTickets).map((ticket) => {
+                const isReal = tickets.length > 0;
+                const ticketNumber = isReal ? `#${ticket.ticket_number}` : ticket.id;
+                const createdDisplay = isReal && ticket.created_at ? new Date(ticket.created_at).toLocaleString() : (ticket.created || '-');
+                const lastReplyDisplay = isReal && ticket.last_message_at ? new Date(ticket.last_message_at).toLocaleString() : (ticket.lastReply || '-');
+                const messageCount = isReal ? (ticket.message_count || 0) : (ticket.messages || 0);
+                const attachmentCount = isReal ? (ticket.attachment_count || 0) : (ticket.attachments || 0);
+                const agentName = isReal ? (ticket.admin_name || 'Not assigned') : (ticket.agent || 'Not assigned');
+
+                return (
                 <div key={ticket.id} className="border border-apple-gray-200 rounded-xl p-6 hover:shadow-md transition-all duration-200">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      <span className="font-bold text-apple-blue">{ticket.id}</span>
+                      <span className="font-bold text-apple-blue">{ticketNumber}</span>
                       <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(ticket.status)}`}>
-                        {ticket.status}
+                        {String(ticket.status).replace('_', ' ')}
                       </span>
                       <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getPriorityColor(ticket.priority)}`}>
-                        {ticket.priority} Priority
+                        {String(ticket.priority).charAt(0).toUpperCase() + String(ticket.priority).slice(1)} Priority
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-sm text-apple-gray-500">Created: {ticket.created}</span>
+                      <span className="text-sm text-apple-gray-500">Created: {createdDisplay}</span>
                       <br />
-                      <span className="text-sm text-apple-gray-500">Last Reply: {ticket.lastReply}</span>
+                      <span className="text-sm text-apple-gray-500">Last Reply: {lastReplyDisplay}</span>
                     </div>
                   </div>
                   
@@ -727,27 +744,29 @@ const Support = () => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                         </svg>
-                        <span>{ticket.messages} messages</span>
+                        <span>{messageCount} messages</span>
                       </span>
-                      {ticket.attachments > 0 && (
+                      {attachmentCount > 0 && (
                         <span className="flex items-center space-x-1">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                           </svg>
-                          <span>{ticket.attachments} files</span>
+                          <span>{attachmentCount} files</span>
                         </span>
                       )}
                       <span>Category: {ticket.category}</span>
-                      <span>Agent: {ticket.agent}</span>
+                      <span>Agent: {agentName}</span>
                     </div>
                     
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => setSelectedTicket(ticket)}
-                        className="px-4 py-2 bg-apple-blue text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                      >
-                        Open Chat
-                      </button>
+                      {isReal && (
+                        <button
+                          onClick={() => setSelectedTicket(ticket)}
+                          className="px-4 py-2 bg-apple-blue text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                          Open Chat
+                        </button>
+                      )}
                       {ticket.status !== 'Resolved' && tickets.length > 0 && (
                         <button
                           onClick={() => setSelectedTicket(ticket)}
@@ -759,7 +778,7 @@ const Support = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
             
             <div className="mt-8 text-center">

@@ -8,6 +8,8 @@ const WalletDeposit = () => {
   const [paymentMethod, setPaymentMethod] = useState('crypto');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [intent, setIntent] = useState(null);
+  const [polling, setPolling] = useState(false);
   const [wallet, setWallet] = useState(null);
   const [depositInfo, setDepositInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,8 +69,51 @@ const WalletDeposit = () => {
         setLoading(false);
       }
     } else {
-      setPaymentCompleted(true);
-      // For crypto deposits, just show instructions
+      try {
+        setLoading(true);
+        // Create deposit intent
+        const createRes = await apiService.createDeposit(parseFloat(amount));
+        if (createRes.success) {
+          setIntent(createRes.intent);
+          setPaymentCompleted(true);
+          // Begin polling for up to 10 minutes
+          setPolling(true);
+          const startedAt = Date.now();
+          const poll = async () => {
+            try {
+              const res = await apiService.checkDeposit(createRes.intent.id);
+              if (res.success && res.result) {
+                if (res.result.status === 'confirmed') {
+                  setPolling(false);
+                  // refresh wallet
+                  const walletResponse = await apiService.getWallet();
+                  if (walletResponse.success) {
+                    setWallet(walletResponse.wallet);
+                  }
+                  return;
+                }
+                if (res.result.status === 'expired' || res.result.status === 'failed') {
+                  setPolling(false);
+                  setError('Deposit expired or failed. Please try again.');
+                  return;
+                }
+              }
+            } catch (e) {
+              // ignore and continue polling
+            }
+            if (Date.now() - startedAt < 10 * 60 * 1000) {
+              setTimeout(poll, 15000); // 15s
+            } else {
+              setPolling(false);
+            }
+          };
+          setTimeout(poll, 5000);
+        }
+      } catch (err) {
+        setError(err.message || 'Failed to create deposit');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -124,16 +169,22 @@ const WalletDeposit = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-apple-gray-900 mb-2">Payment Verification in Progress</h3>
+            <h3 className="text-xl font-semibold text-apple-gray-900 mb-2">Payment Verification {polling ? 'in Progress' : 'Status'}</h3>
             <p className="text-apple-gray-600 mb-6">
-              We're verifying your payment of ${parseFloat(amount).toFixed(2)}. This usually takes a few minutes.
+              {polling ? `We're verifying your payment of $${parseFloat(amount).toFixed(2)}. This usually takes a few minutes.` : 'Verification finished or paused. If not confirmed yet, it will keep checking in the background.'}
             </p>
             
             <div className="bg-apple-gray-50 rounded-xl p-6 mb-6">
-              <div className="flex justify-between items-center mb-4">
+               <div className="flex justify-between items-center mb-4">
                 <span className="text-apple-gray-600">Amount Deposited:</span>
                 <span className="font-semibold text-apple-gray-900">${parseFloat(amount).toFixed(2)}</span>
               </div>
+               {intent && (
+                 <div className="flex justify-between items-center mb-4">
+                   <span className="text-apple-gray-600">Intent ID:</span>
+                   <span className="font-mono text-xs text-apple-gray-900">{intent.id}</span>
+                 </div>
+               )}
               <div className="flex justify-between items-center mb-4">
                 <span className="text-apple-gray-600">Current Balance:</span>
                 <span className="font-semibold text-apple-gray-900">${wallet?.balance?.toFixed(2) || '0.00'}</span>
@@ -146,11 +197,8 @@ const WalletDeposit = () => {
               </div>
             </div>
 
-            <button
-              onClick={() => setPaymentCompleted(false)}
-              className="btn-apple mr-4"
-            >
-              Mark as Completed
+            <button onClick={async () => intent && (await apiService.checkDeposit(intent.id))} className="btn-apple mr-4">
+              Check Now
             </button>
             <Link to="/dashboard/wallet" className="btn-apple-secondary">
               Back to Wallet
@@ -207,7 +255,7 @@ const WalletDeposit = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                     </svg>
                   </div>
-                  <span className="font-medium">USDT (ERC-20) Crypto Deposit</span>
+                  <span className="font-medium">USDT (Polygon) Crypto Deposit</span>
                 </label>
               </div>
               
@@ -235,7 +283,7 @@ const WalletDeposit = () => {
             {/* Crypto Deposit Information */}
             {paymentMethod === 'crypto' && depositInfo && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-                <h4 className="font-medium text-green-800 mb-3">USDT (ERC-20) Deposit Instructions</h4>
+                <h4 className="font-medium text-green-800 mb-3">USDT (Polygon) Deposit Instructions</h4>
                 
                 <div className="space-y-3">
                   <div>

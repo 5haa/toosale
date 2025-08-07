@@ -5,6 +5,18 @@ class ApiService {
     this.baseURL = API_BASE_URL;
   }
 
+  // Returns the API root without the trailing /api path, useful for static file URLs
+  getApiRoot() {
+    return this.baseURL.replace(/\/?api\/?$/, '');
+  }
+
+  // Builds a full URL for a server-hosted file path like /uploads/...
+  buildFileUrl(relativePath) {
+    if (!relativePath) return '';
+    const root = this.getApiRoot();
+    return `${root}${relativePath}`;
+  }
+
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
@@ -28,19 +40,57 @@ class ApiService {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // If JSON parsing fails, create a fallback error object
+          data = {
+            success: false,
+            message: `Failed to parse response as JSON: ${parseError.message}`
+          };
+        }
+      } else {
+        // Handle non-JSON responses (like plain text rate limit messages)
+        const textResponse = await response.text();
+        data = {
+          success: false,
+          message: textResponse || `HTTP error! status: ${response.status}`
+        };
+      }
 
       if (!response.ok) {
         // Create a detailed error object
         const error = new Error(data.message || `HTTP error! status: ${response.status}`);
         error.status = response.status;
         error.data = data;
+        
+        // Add retry information for rate limit errors
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('retry-after') || data.retryAfter;
+          if (retryAfter) {
+            error.retryAfter = parseInt(retryAfter);
+            error.message = `${data.message} Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`;
+          }
+        }
+        
         throw error;
       }
 
       return data;
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // If it's a network error or other non-HTTP error
+      if (!error.status) {
+        error.message = 'Network error. Please check your connection and try again.';
+      }
+      
       throw error;
     }
   }
@@ -77,6 +127,19 @@ class ApiService {
 
   async getDepositInfo() {
     return this.request('/wallet/deposit-info');
+  }
+
+  async createDeposit(amount) {
+    return this.request('/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+  }
+
+  async checkDeposit(intentId) {
+    return this.request(`/wallet/deposit/${intentId}/check`, {
+      method: 'POST',
+    });
   }
 
   async getWalletTransactions(limit = 20, offset = 0) {
@@ -194,6 +257,28 @@ class ApiService {
     return this.request(`/products/search/query?${searchParams}`);
   }
 
+  // Review methods
+  async getReviewsSummary(productId) {
+    return this.request(`/reviews/product/${productId}/summary`);
+  }
+
+  async submitReview(productId, rating, orderId = null) {
+    return this.request(`/reviews/product/${productId}`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, orderId }),
+    });
+  }
+
+  async getUserReview(productId) {
+    return this.request(`/reviews/product/${productId}/user`);
+  }
+
+  async deleteReview(productId) {
+    return this.request(`/reviews/product/${productId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Order methods
   async createOrder(orderData) {
     return this.request('/orders', {
@@ -221,6 +306,24 @@ class ApiService {
   async getOrderStats(params = {}) {
     const queryString = new URLSearchParams(params).toString();
     return this.request(`/orders/stats/overview${queryString ? '?' + queryString : ''}`);
+  }
+
+  // Notification methods
+  async getNotifications(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/notifications${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getUnreadNotificationsCount() {
+    return this.request('/notifications/unread-count');
+  }
+
+  async markNotificationRead(id) {
+    return this.request(`/notifications/${id}/read`, { method: 'PATCH' });
+  }
+
+  async markAllNotificationsRead() {
+    return this.request('/notifications/mark-all-read', { method: 'POST' });
   }
 
   // Support methods
@@ -322,6 +425,26 @@ class ApiService {
 
   async getAdminAnalytics(period = '30d') {
     return this.request(`/admin/analytics?period=${period}`);
+  }
+
+  // Admin wallet withdrawals
+  async getAdminWithdrawals(params = {}) {
+    const { status = 'pending', page = 1, limit = 20 } = params;
+    const queryString = new URLSearchParams({ status, page, limit }).toString();
+    return this.request(`/admin/wallet/withdrawals?${queryString}`);
+  }
+
+  async approveAdminWithdrawal(withdrawalId) {
+    return this.request(`/admin/wallet/withdrawals/${withdrawalId}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectAdminWithdrawal(withdrawalId, reason) {
+    return this.request(`/admin/wallet/withdrawals/${withdrawalId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
   }
 
   // File upload helper method

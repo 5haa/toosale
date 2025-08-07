@@ -33,7 +33,7 @@ const ProductCard = ({ product, className = "" }) => {
     >
       <div className="relative bg-apple-gray-50 rounded-2xl overflow-hidden mb-4 group-hover:shadow-2xl transition-all duration-300">
         <img
-          src={product.image}
+          src={product.imageUrl || product.image}
           alt={product.name}
           className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
@@ -85,11 +85,11 @@ const ProductCard = ({ product, className = "" }) => {
               {renderStars(product.rating)}
             </div>
             <span className="text-sm text-apple-gray-500">
-              {product.rating}
+              {product.rating.toFixed(1)}
             </span>
-            {product.reviews && (
+            {product.reviewCount > 0 && (
               <span className="text-sm text-apple-gray-400">
-                ({product.reviews} reviews)
+                ({product.reviewCount} reviews)
               </span>
             )}
           </div>

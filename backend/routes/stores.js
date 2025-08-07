@@ -5,16 +5,7 @@ const { verifyToken, verifyStoreOwner } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Helper function to generate store slug
-const generateSlug = (name, userId) => {
-  const baseSlug = name.toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim('-');
-  
-  return `${baseSlug}-${userId}`;
-};
+
 
 // Validation middleware
 const validateStoreCreation = [
@@ -30,10 +21,21 @@ const validateStoreCreation = [
     .optional()
     .isBoolean()
     .withMessage('isPublic must be a boolean'),
-  body('customDomain')
-    .optional()
-    .isLength({ max: 255 })
-    .withMessage('Custom domain must not exceed 255 characters'),
+  body('slug')
+    .trim()
+    .isLength({ min: 3, max: 50 })
+    .withMessage('Store URL must be between 3 and 50 characters')
+    .matches(/^[a-z0-9-]+$/)
+    .withMessage('Store URL can only contain lowercase letters, numbers, and hyphens')
+    .custom((value) => {
+      if (value.startsWith('-') || value.endsWith('-')) {
+        throw new Error('Store URL cannot start or end with a hyphen');
+      }
+      if (value.includes('--')) {
+        throw new Error('Store URL cannot contain consecutive hyphens');
+      }
+      return true;
+    }),
   body('themeColor')
     .optional()
     .matches(/^#[0-9A-F]{6}$/i)
@@ -54,10 +56,21 @@ const validateStoreUpdate = [
     .optional()
     .isBoolean()
     .withMessage('isPublic must be a boolean'),
-  body('customDomain')
+  body('slug')
     .optional()
-    .isLength({ max: 255 })
-    .withMessage('Custom domain must not exceed 255 characters'),
+    .isLength({ min: 3, max: 50 })
+    .withMessage('Store URL must be between 3 and 50 characters')
+    .matches(/^[a-z0-9-]+$/)
+    .withMessage('Store URL can only contain lowercase letters, numbers, and hyphens')
+    .custom((value) => {
+      if (value.startsWith('-') || value.endsWith('-')) {
+        throw new Error('Store URL cannot start or end with a hyphen');
+      }
+      if (value.includes('--')) {
+        throw new Error('Store URL cannot contain consecutive hyphens');
+      }
+      return true;
+    }),
   body('themeColor')
     .optional()
     .matches(/^#[0-9A-F]{6}$/i)
@@ -112,7 +125,6 @@ router.get('/my-store', verifyToken, async (req, res) => {
         description: store.description,
         slug: store.slug,
         logoUrl: store.logo_url,
-        customDomain: store.custom_domain,
         isPublic: store.is_public,
         themeColor: store.theme_color,
         productCount: parseInt(store.product_count),
@@ -151,7 +163,7 @@ router.post('/', verifyToken, validateStoreCreation, async (req, res) => {
       });
     }
 
-    const { name, description, isPublic = true, customDomain, themeColor = '#007AFF' } = req.body;
+    const { name, description, isPublic = true, slug, themeColor = '#007AFF' } = req.body;
 
     // Check if user already has a store
     const existingStore = await query(
@@ -166,9 +178,6 @@ router.post('/', verifyToken, validateStoreCreation, async (req, res) => {
       });
     }
 
-    // Generate unique slug
-    const slug = generateSlug(name, req.userId);
-
     // Check if slug is unique
     const slugCheck = await query(
       'SELECT id FROM stores WHERE slug = $1',
@@ -178,16 +187,16 @@ router.post('/', verifyToken, validateStoreCreation, async (req, res) => {
     if (slugCheck.rows.length > 0) {
       return res.status(409).json({
         success: false,
-        message: 'Store name conflicts with existing store. Please choose a different name.'
+        message: 'This store URL is already taken. Please choose a different one.'
       });
     }
 
     // Create store
     const result = await query(
-      `INSERT INTO stores (user_id, name, description, slug, is_public, custom_domain, theme_color) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      `INSERT INTO stores (user_id, name, description, slug, is_public, theme_color) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [req.userId, name, description, slug, isPublic, customDomain, themeColor]
+      [req.userId, name, description, slug, isPublic, themeColor]
     );
 
     const store = result.rows[0];
@@ -201,7 +210,6 @@ router.post('/', verifyToken, validateStoreCreation, async (req, res) => {
         description: store.description,
         slug: store.slug,
         logoUrl: store.logo_url,
-        customDomain: store.custom_domain,
         isPublic: store.is_public,
         themeColor: store.theme_color,
         createdAt: store.created_at,
@@ -231,16 +239,37 @@ router.put('/:storeId', verifyToken, verifyStoreOwner, validateStoreUpdate, asyn
       });
     }
 
-    const { name, description, isPublic, customDomain, themeColor, logoUrl } = req.body;
+    const { name, description, isPublic, slug, themeColor, logoUrl } = req.body;
     const storeId = req.params.storeId;
 
     const updateFields = [];
     const updateValues = [];
     let valueIndex = 1;
 
+    // Handle name update
     if (name !== undefined) {
       updateFields.push(`name = $${valueIndex}`);
       updateValues.push(name);
+      valueIndex++;
+    }
+
+    // Handle slug update with uniqueness check
+    if (slug !== undefined) {
+      // Check if the new slug conflicts with existing stores
+      const slugCheck = await query(
+        'SELECT id FROM stores WHERE slug = $1 AND id != $2',
+        [slug, storeId]
+      );
+
+      if (slugCheck.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'This store URL is already taken. Please choose a different one.'
+        });
+      }
+
+      updateFields.push(`slug = $${valueIndex}`);
+      updateValues.push(slug);
       valueIndex++;
     }
 
@@ -253,12 +282,6 @@ router.put('/:storeId', verifyToken, verifyStoreOwner, validateStoreUpdate, asyn
     if (isPublic !== undefined) {
       updateFields.push(`is_public = $${valueIndex}`);
       updateValues.push(isPublic);
-      valueIndex++;
-    }
-
-    if (customDomain !== undefined) {
-      updateFields.push(`custom_domain = $${valueIndex}`);
-      updateValues.push(customDomain);
       valueIndex++;
     }
 
@@ -303,7 +326,6 @@ router.put('/:storeId', verifyToken, verifyStoreOwner, validateStoreUpdate, asyn
         description: store.description,
         slug: store.slug,
         logoUrl: store.logo_url,
-        customDomain: store.custom_domain,
         isPublic: store.is_public,
         themeColor: store.theme_color,
         createdAt: store.created_at,

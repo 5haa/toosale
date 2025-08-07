@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import apiService from '../services/api';
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { user } = useAuth();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [pendingOrders, setPendingOrders] = useState(0);
 
   const navigation = [
     {
@@ -62,6 +65,37 @@ const DashboardLayout = () => {
   const isActivePath = (path) => {
     return location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path));
   };
+
+  // Fetch counters
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCounts() {
+      try {
+        if (!user) return;
+        const [unreadRes, statsRes] = await Promise.all([
+          apiService.getUnreadNotificationsCount().catch(() => ({ success: true, unreadCount: 0 })),
+          apiService.getOrderStats().catch(() => ({ success: true, stats: { pendingOrders: 0 } }))
+        ]);
+        if (!isMounted) return;
+        setUnreadNotifications(unreadRes?.unreadCount || 0);
+        setPendingOrders(statsRes?.stats?.pendingOrders || 0);
+      } catch (_e) {
+        if (!isMounted) return;
+        setUnreadNotifications(0);
+        setPendingOrders(0);
+      }
+    }
+
+    loadCounts();
+
+    // Poll periodically for updates
+    const interval = setInterval(loadCounts, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-apple-gray-50 lg:flex">
@@ -140,6 +174,11 @@ const DashboardLayout = () => {
                 >
                   <span className="mr-3">{item.icon}</span>
                   {item.name}
+                  {item.name === 'Orders' && pendingOrders > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-apple-blue text-white text-xs font-semibold h-5 px-2">
+                      {pendingOrders}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>
@@ -268,7 +307,11 @@ const DashboardLayout = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 {/* Notification badge */}
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full h-3 w-3"></span>
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-5 px-1 flex items-center justify-center">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
               </Link>
 
               {/* Profile dropdown */}

@@ -2,8 +2,23 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { query } = require('../config/database');
 const { verifyAdmin } = require('../middleware/auth');
+const WalletService = require('../services/walletService');
+const walletService = new WalletService();
 
 const router = express.Router();
+
+// Helper: create a notification
+async function createNotification(userId, type, title, message, data = {}) {
+  try {
+    await query(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, type, title, message, JSON.stringify(data)]
+    );
+  } catch (e) {
+    console.error('Failed to create notification:', e);
+  }
+}
 
 // Get admin dashboard stats
 router.get('/dashboard/stats', verifyAdmin, async (req, res) => {
@@ -353,12 +368,13 @@ router.patch('/orders/:orderId/status', verifyAdmin, async (req, res) => {
       });
     }
 
-    const result = await query(`
-      UPDATE orders 
-      SET status = $1, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-      RETURNING *
-    `, [status, orderId]);
+    const result = await query(
+      `UPDATE orders 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING id, order_number, store_id, total_amount`,
+      [status, orderId]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -367,10 +383,25 @@ router.patch('/orders/:orderId/status', verifyAdmin, async (req, res) => {
       });
     }
 
+    // Notify store owner about status change
+    const order = result.rows[0];
+    if (order.store_id) {
+      const ownerRes = await query('SELECT user_id FROM stores WHERE id = $1', [order.store_id]);
+      if (ownerRes.rows.length > 0) {
+        await createNotification(
+          ownerRes.rows[0].user_id,
+          'order_status',
+          'Order Status Updated',
+          `Order ${order.order_number} is now ${status}`,
+          { orderId: order.id, orderNumber: order.order_number, status }
+        );
+      }
+    }
+
     res.json({
       success: true,
       message: 'Order status updated successfully',
-      order: result.rows[0]
+      order
     });
 
   } catch (error) {
@@ -471,3 +502,100 @@ router.get('/analytics', verifyAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+// --- Wallet admin: review withdrawals ---
+// List pending withdrawals
+router.get('/wallet/withdrawals', verifyAdmin, async (req, res) => {
+  try {
+    const { status = 'pending', page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    const result = await query(
+      `SELECT wt.* , u.first_name || ' ' || u.last_name as user_name
+       FROM wallet_transactions wt
+       JOIN users u ON u.id = wt.user_id
+       WHERE wt.transaction_type = 'withdrawal' AND wt.status = $1
+       ORDER BY wt.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [status, limit, offset]
+    );
+    res.json({ success: true, withdrawals: result.rows });
+  } catch (error) {
+    console.error('List withdrawals error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Approve withdrawal: mark completed and deduct balance
+router.post('/wallet/withdrawals/:id/approve', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Load withdrawal
+    const txRes = await query(`SELECT * FROM wallet_transactions WHERE id = $1 AND transaction_type = 'withdrawal'`, [id]);
+    if (txRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+    }
+    const tx = txRes.rows[0];
+    if (tx.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Withdrawal is not pending' });
+    }
+
+    // Fetch wallet
+    const wRes = await query(`SELECT id, balance FROM wallets WHERE id = $1`, [tx.wallet_id]);
+    if (wRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Wallet not found' });
+    }
+    const wallet = wRes.rows[0];
+    const amount = Math.abs(Number(tx.amount));
+    if (Number(wallet.balance) < amount) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance to approve' });
+    }
+
+    await query('BEGIN');
+    try {
+      // Deduct balance
+      const newBalance = Number(wallet.balance) - amount;
+      await walletService.updateWalletBalance(wallet.id, newBalance);
+
+      // Mark transaction completed
+      await query(`UPDATE wallet_transactions SET status = 'completed', balance_after = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [newBalance, id]);
+
+      await query('COMMIT');
+      res.json({ success: true, message: 'Withdrawal approved', newBalance });
+    } catch (e) {
+      await query('ROLLBACK');
+      throw e;
+    }
+  } catch (error) {
+    console.error('Approve withdrawal error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Reject withdrawal: keep balance same, set failed with reason
+router.post('/wallet/withdrawals/:id/reject', [
+  verifyAdmin,
+  body('reason').isString().isLength({ min: 3, max: 255 }).withMessage('Reason required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+    }
+    const { id } = req.params;
+    const { reason } = req.body;
+    const txRes = await query(`SELECT * FROM wallet_transactions WHERE id = $1 AND transaction_type = 'withdrawal'`, [id]);
+    if (txRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+    }
+    const tx = txRes.rows[0];
+    if (tx.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Withdrawal is not pending' });
+    }
+    await query(`UPDATE wallet_transactions SET status = 'failed', description = COALESCE(description,'') || ' | Rejected: ' || $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [reason, id]);
+    res.json({ success: true, message: 'Withdrawal rejected' });
+  } catch (error) {
+    console.error('Reject withdrawal error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+

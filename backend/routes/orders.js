@@ -2,8 +2,22 @@ const express = require('express');
 const { body, validationResult, param } = require('express-validator');
 const { query } = require('../config/database');
 const { verifyToken } = require('../middleware/auth');
+const WalletService = require('../services/walletService');
 
 const router = express.Router();
+const walletService = new WalletService();
+// Simple helper for creating notifications
+async function createNotification(userId, type, title, message, data = {}) {
+  try {
+    await query(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId, type, title, message, JSON.stringify(data)]
+    );
+  } catch (error) {
+    console.error('Failed to create notification:', error);
+  }
+}
 
 // Helper function to generate order number
 async function generateOrderNumber() {
@@ -43,6 +57,35 @@ router.post('/', [
     }
 
     const { customerInfo, items, totals, paymentInfo, userId } = req.body;
+
+    // Handle wallet payment if specified
+    let walletTransaction = null;
+    if (paymentInfo.method === 'wallet' && userId) {
+      // Verify user has sufficient wallet balance
+      const userWallet = await walletService.getUserWallet(userId);
+      if (!userWallet) {
+        return res.status(400).json({
+          success: false,
+          message: 'User wallet not found. Please create a wallet first.'
+        });
+      }
+
+      if (userWallet.balance < totals.total) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient wallet balance. Required: $${totals.total}, Available: $${userWallet.balance}`
+        });
+      }
+
+      // Prepare wallet transaction (will execute after order creation)
+      walletTransaction = {
+        walletId: userWallet.id,
+        userId: userId,
+        amount: totals.total,
+        balanceBefore: userWallet.balance,
+        balanceAfter: userWallet.balance - totals.total
+      };
+    }
 
     // Start transaction
     await query('BEGIN');
@@ -87,9 +130,9 @@ router.post('/', [
         totals.tax,
         totals.total,
         paymentInfo.method || 'USDT',
-        paymentInfo.transactionHash || null,
+        paymentInfo.transactionHash || (walletTransaction ? `wallet-${orderNumber}` : null),
         'pending',
-        paymentInfo.transactionHash ? 'paid' : 'pending'
+        (paymentInfo.transactionHash || walletTransaction) ? 'paid' : 'pending'
       ]);
 
       const order = orderResult.rows[0];
@@ -128,20 +171,61 @@ router.post('/', [
         );
       }
 
+      // Execute wallet payment if specified
+      if (walletTransaction) {
+        // Update wallet balance
+        await walletService.updateWalletBalance(walletTransaction.walletId, walletTransaction.balanceAfter);
+        
+        // Record wallet transaction
+        await walletService.recordTransaction({
+          walletId: walletTransaction.walletId,
+          userId: walletTransaction.userId,
+          type: 'purchase',
+          amount: -walletTransaction.amount,
+          balanceBefore: walletTransaction.balanceBefore,
+          balanceAfter: walletTransaction.balanceAfter,
+          status: 'completed',
+          description: `Purchase order ${orderNumber}`,
+          metadata: { orderId: order.id, orderNumber: orderNumber }
+        });
+      }
+
       // Order created successfully
+
+      // Notify store owner (if exists) about new order
+      if (storeId) {
+        const ownerResult = await query('SELECT user_id FROM stores WHERE id = $1', [storeId]);
+        if (ownerResult.rows.length > 0) {
+          const ownerId = ownerResult.rows[0].user_id;
+          await createNotification(
+            ownerId,
+            'order_created',
+            'New Order Received',
+            `Order ${orderNumber} was created with total $${totals.total.toFixed(2)}`,
+            { orderId: order.id, orderNumber }
+          );
+        }
+      }
 
       // Commit transaction
       await query('COMMIT');
 
       res.status(201).json({
         success: true,
-        message: 'Order created successfully',
+        message: walletTransaction ? 'Order created and paid with wallet balance' : 'Order created successfully',
         order: {
           id: order.id,
           orderNumber: order.order_number,
           createdAt: order.created_at,
           status: 'pending',
-          paymentStatus: paymentInfo.transactionHash ? 'paid' : 'pending'
+          paymentStatus: (paymentInfo.transactionHash || walletTransaction) ? 'paid' : 'pending',
+          paymentMethod: paymentInfo.method || 'USDT',
+          ...(walletTransaction && { 
+            walletInfo: {
+              amountDeducted: walletTransaction.amount,
+              newBalance: walletTransaction.balanceAfter
+            }
+          })
         }
       });
 
@@ -396,10 +480,26 @@ router.patch('/:orderId/status', [
     const { status, notes } = req.body;
 
     // Update order status
-    await query(
-      `UPDATE orders SET status = $1, notes = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+    const updated = await query(
+      `UPDATE orders SET status = $1, notes = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING store_id, order_number, total_amount`,
       [status, notes || null, orderId]
     );
+
+    // Notify store owner about status change
+    if (updated.rows.length > 0 && updated.rows[0].store_id) {
+      const storeId = updated.rows[0].store_id;
+      const ownerResult = await query('SELECT user_id FROM stores WHERE id = $1', [storeId]);
+      if (ownerResult.rows.length > 0) {
+        const ownerId = ownerResult.rows[0].user_id;
+        await createNotification(
+          ownerId,
+          'order_status',
+          'Order Status Updated',
+          `Order ${updated.rows[0].order_number} is now ${status}`,
+          { orderId: Number(orderId), orderNumber: updated.rows[0].order_number, status }
+        );
+      }
+    }
 
     res.json({
       success: true,

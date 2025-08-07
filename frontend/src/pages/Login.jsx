@@ -42,7 +42,25 @@ const Login = () => {
         setError(result.message || 'Login failed');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      console.error('Login error:', err);
+      
+      // Handle different types of errors
+      if (err.status === 429) {
+        // Rate limit error
+        setError(err.message || 'Too many login attempts. Please try again later.');
+      } else if (err.status === 401) {
+        // Authentication error
+        setError('Invalid email or password');
+      } else if (err.status === 500) {
+        // Server error
+        setError('Server error. Please try again later.');
+      } else if (!navigator.onLine) {
+        // Network error
+        setError('No internet connection. Please check your network and try again.');
+      } else {
+        // Fallback error message
+        setError(err.message || 'An unexpected error occurred. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,157 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../services/api';
 
 const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('featured');
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([{ id: 'all', name: 'All Products' }]);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
-  const categories = [
-    { id: 'all', name: 'All Products' },
-    { id: 'electronics', name: 'Electronics' },
-    { id: 'fashion', name: 'Fashion' },
-    { id: 'home', name: 'Home & Garden' },
-    { id: 'sports', name: 'Sports' },
-    { id: 'beauty', name: 'Beauty' },
-    { id: 'accessories', name: 'Accessories' }
-  ];
-
-  const products = [
-    {
-      id: 1,
-      name: 'Premium Wireless Headphones',
-      price: 299,
-      originalPrice: 399,
-      rating: 4.8,
-      reviews: 124,
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop',
-      category: 'electronics',
-      badge: 'Best Seller'
-    },
-    {
-      id: 2,
-      name: 'Smart Fitness Watch',
-      price: 249,
-      originalPrice: 349,
-      rating: 4.6,
-      reviews: 89,
-      image: 'https://images.unsplash.com/photo-1544117519-31a4b719223d?w=400&h=400&fit=crop',
-      category: 'electronics',
-      badge: 'New'
-    },
-    {
-      id: 3,
-      name: 'Designer Sunglasses',
-      price: 159,
-      originalPrice: 229,
-      rating: 4.7,
-      reviews: 67,
-      image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=400&h=400&fit=crop',
-      category: 'fashion'
-    },
-    {
-      id: 4,
-      name: 'Minimalist Backpack',
-      price: 89,
-      originalPrice: 129,
-      rating: 4.5,
-      reviews: 156,
-      image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop',
-      category: 'accessories'
-    },
-    {
-      id: 5,
-      name: 'Wireless Speaker',
-      price: 199,
-      originalPrice: 279,
-      rating: 4.9,
-      reviews: 203,
-      image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=400&fit=crop',
-      category: 'electronics',
-      badge: 'Top Rated'
-    },
-    {
-      id: 6,
-      name: 'Luxury Watch',
-      price: 599,
-      originalPrice: 799,
-      rating: 4.8,
-      reviews: 45,
-      image: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=400&h=400&fit=crop',
-      category: 'accessories'
-    },
-    {
-      id: 7,
-      name: 'Organic Skincare Set',
-      price: 129,
-      originalPrice: 179,
-      rating: 4.6,
-      reviews: 78,
-      image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop',
-      category: 'beauty'
-    },
-    {
-      id: 8,
-      name: 'Professional Camera',
-      price: 899,
-      originalPrice: 1199,
-      rating: 4.9,
-      reviews: 56,
-      image: 'https://images.unsplash.com/photo-1606983340126-99ab4feaa64a?w=400&h=400&fit=crop',
-      category: 'electronics',
-      badge: 'Professional'
-    },
-    {
-      id: 9,
-      name: 'Running Shoes',
-      price: 149,
-      originalPrice: 199,
-      rating: 4.7,
-      reviews: 234,
-      image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop',
-      category: 'sports'
-    },
-    {
-      id: 10,
-      name: 'Smart Home Hub',
-      price: 199,
-      originalPrice: 249,
-      rating: 4.5,
-      reviews: 89,
-      image: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=400&fit=crop',
-      category: 'home'
-    },
-    {
-      id: 11,
-      name: 'Designer Handbag',
-      price: 299,
-      originalPrice: 399,
-      rating: 4.8,
-      reviews: 145,
-      image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&h=400&fit=crop',
-      category: 'fashion'
-    },
-    {
-      id: 12,
-      name: 'Yoga Mat Set',
-      price: 79,
-      originalPrice: 99,
-      rating: 4.6,
-      reviews: 167,
-      image: 'https://images.unsplash.com/photo-1506629905607-bb15abbb937b?w=400&h=400&fit=crop',
-      category: 'sports'
+  // Fetch categories and products from API
+  const fetchCategories = async () => {
+    try {
+      const response = await api.getCategories();
+      if (response.success) {
+        setCategories([
+          { id: 'all', name: 'All Products' },
+          ...response.categories.map(cat => ({ id: cat.slug, name: cat.name }))
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
-  ];
+  };
 
-  const filteredProducts = selectedCategory === 'all' 
-    ? products 
-    : products.filter(product => product.category === selectedCategory);
+  const fetchProducts = async (reset = false) => {
+    try {
+      setLoading(true);
+      const params = {
+        page: reset ? 1 : currentPage,
+        limit: 20,
+        sortBy: sortBy === 'featured' ? 'trending' : sortBy,
+        sortOrder: 'DESC'
+      };
+
+      if (selectedCategory !== 'all') {
+        params.category = selectedCategory;
+      }
+
+      const response = await api.getProducts(params);
+      if (response.success) {
+        if (reset) {
+          setProducts(response.products);
+          setCurrentPage(1);
+        } else {
+          setProducts(prev => [...prev, ...response.products]);
+        }
+        setHasMore(response.pagination.hasNext);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    fetchProducts(true);
+  }, [selectedCategory, sortBy]);
+
+  const handleLoadMore = () => {
+    setCurrentPage(prev => prev + 1);
+    fetchProducts(false);
+  };
 
   const renderStars = (rating) => {
     return Array.from({ length: 5 }, (_, i) => (
       <svg
         key={i}
         className={`w-4 h-4 ${
-          i < Math.floor(rating) ? 'text-yellow-400' : 'text-apple-gray-300'
+          i < Math.floor(rating) ? 'text-yellow-400' : 'text-gray-300'
         }`}
         fill="currentColor"
         viewBox="0 0 20 20"
@@ -164,13 +88,13 @@ const Products = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <section className="bg-apple-gray-50 py-16">
-        <div className="section-padding">
+      <section className="bg-gray-50 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-5xl font-bold text-apple-gray-800 mb-4">
+            <h1 className="text-5xl font-bold text-gray-800 mb-4">
               Products
             </h1>
-            <p className="text-xl text-apple-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Discover our complete collection of premium products at unbeatable prices.
             </p>
           </div>
@@ -178,20 +102,19 @@ const Products = () => {
       </section>
 
       {/* Filters */}
-      <section className="py-8 bg-white border-b border-apple-gray-200">
-        <div className="section-padding">
-          <div className="card-apple p-6">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
-            {/* Category Filter */}
+      <section className="py-8 bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+            {/* Categories */}
             <div className="flex flex-wrap gap-2">
               {categories.map((category) => (
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     selectedCategory === category.id
-                      ? 'bg-apple-blue text-white'
-                      : 'bg-apple-gray-100 text-apple-gray-700 hover:bg-apple-gray-200'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {category.name}
@@ -199,21 +122,20 @@ const Products = () => {
               ))}
             </div>
 
-            {/* Sort Filter */}
+            {/* Sort Options */}
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-apple-gray-600">Sort by:</span>
+              <span className="text-sm text-gray-500">Sort by:</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="border border-apple-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-apple-blue"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="featured">Featured</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="rating">Customer Rating</option>
-                <option value="newest">Newest</option>
+                <option value="name">Name</option>
+                <option value="price">Price</option>
+                <option value="rating">Rating</option>
+                <option value="created_at">Newest</option>
               </select>
-            </div>
             </div>
           </div>
         </div>
@@ -221,66 +143,83 @@ const Products = () => {
 
       {/* Products Grid */}
       <section className="py-12">
-        <div className="section-padding">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {filteredProducts.map((product) => (
-              <Link
-                key={product.id}
-                to={`/product/${product.id}`}
-                className="group cursor-pointer"
-              >
-                <div className="relative bg-apple-gray-50 rounded-2xl overflow-hidden mb-4 group-hover:shadow-xl transition-shadow duration-300">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  {product.badge && (
-                    <div className="absolute top-4 left-4">
-                      <span className="bg-apple-blue text-white text-xs font-medium px-2 py-1 rounded-full">
-                        {product.badge}
-                      </span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {loading && products.length === 0 ? (
+            <div className="flex justify-center items-center py-20">
+              <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                {products.map((product) => (
+                  <Link
+                    key={product.id}
+                    to={`/product/${product.id}`}
+                    className="group cursor-pointer"
+                  >
+                    <div className="relative bg-gray-50 rounded-2xl overflow-hidden mb-4 group-hover:shadow-xl transition-shadow duration-300">
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {product.trending && (
+                        <div className="absolute top-4 left-4">
+                          <span className="bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full">
+                            Trending
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-apple-gray-800 group-hover:text-apple-blue transition-colors">
-                    {product.name}
-                  </h3>
-                  
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center">
-                      {renderStars(product.rating)}
+                    
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+                        {product.name}
+                      </h3>
+                      
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center">
+                          {renderStars(product.rating)}
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {product.rating.toFixed(1)}
+                        </span>
+                        {product.reviewCount > 0 && (
+                          <span className="text-sm text-gray-400">
+                            ({product.reviewCount} reviews)
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xl font-bold text-gray-800">
+                          ${product.price}
+                        </span>
+                        {product.originalPrice && (
+                          <span className="text-sm text-gray-500 line-through">
+                            ${product.originalPrice}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-sm text-apple-gray-500">
-                      ({product.reviews})
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xl font-bold text-apple-gray-800">
-                      ${product.price}
-                    </span>
-                    {product.originalPrice && (
-                      <span className="text-sm text-apple-gray-500 line-through">
-                        ${product.originalPrice}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+                  </Link>
+                ))}
+              </div>
 
-      {/* Load More */}
-      <section className="py-12 border-t border-apple-gray-200">
-        <div className="section-padding text-center">
-          <button className="btn-apple-outline px-8 py-3">
-            Load More Products
-          </button>
+              {/* Load More */}
+              {hasMore && (
+                <div className="text-center mt-12">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loading}
+                    className="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? 'Loading...' : 'Load More Products'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
     </div>

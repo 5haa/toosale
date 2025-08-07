@@ -110,11 +110,11 @@ router.get('/deposit-info', verifyToken, async (req, res) => {
       depositInfo: {
         walletAddress: wallet.address,
         privateKey: privateKey,
-        instructions: 'Send USDT (ERC-20) to this address. Use the private key to import into your wallet app.',
+        instructions: 'Send USDT on Polygon (PoS) to this address. Use the private key to import into your wallet app.',
         warnings: [
           'Keep your private key secure and never share it',
-          'Only send USDT (ERC-20) tokens to this address',
-          'Sending other tokens may result in permanent loss',
+          'Only send USDT on Polygon (USDT.e) to this address',
+          'Sending tokens on other networks may result in permanent loss',
           'Always verify the address before sending'
         ]
       }
@@ -125,6 +125,46 @@ router.get('/deposit-info', verifyToken, async (req, res) => {
       success: false,
       message: 'Internal server error'
     });
+  }
+});
+
+/**
+ * POST /api/wallet/deposit
+ * Create a deposit intent and start verification loop
+ */
+router.post('/deposit', [
+  verifyToken,
+  body('amount')
+    .isFloat({ min: 1 })
+    .withMessage('Minimum deposit amount is $1')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+    }
+
+    const { amount } = req.body;
+    const intent = await walletService.createDepositIntent(req.userId, parseFloat(amount));
+    res.status(201).json({ success: true, intent });
+  } catch (error) {
+    console.error('Create deposit intent error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/wallet/deposit/:intentId/check
+ * Check a specific deposit intent now
+ */
+router.post('/deposit/:intentId/check', verifyToken, async (req, res) => {
+  try {
+    const { intentId } = req.params;
+    const result = await walletService.verifyDepositIntent(intentId);
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('Verify deposit intent error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
@@ -206,6 +246,35 @@ router.post('/add-funds', [
       });
     }
 
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * GET /api/wallet/balance
+ * Get user's current wallet balance
+ */
+router.get('/balance', verifyToken, async (req, res) => {
+  try {
+    const wallet = await walletService.getUserWallet(req.userId);
+    
+    if (!wallet) {
+      return res.status(404).json({
+        success: false,
+        message: 'Wallet not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      balance: wallet.balance,
+      address: wallet.address
+    });
+  } catch (error) {
+    console.error('Get wallet balance error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'

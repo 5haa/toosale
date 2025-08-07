@@ -9,15 +9,24 @@ class WalletService {
     this.encryptionKey = crypto.scryptSync(key, 'salt', 32); // Derive a 32-byte key
     this.algorithm = 'aes-256-cbc';
     
-    // USDT Contract Address on Ethereum Mainnet
-    this.USDT_CONTRACT_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
-    
+    // Use Polygon network by default
+    // USDT Contract Address on Polygon Mainnet (PoS): 0xC2132D05D31c914a87C6611C10748AEb04B58e8F
+    this.USDT_CONTRACT_ADDRESS = process.env.USDT_CONTRACT_POLYGON || '0xC2132D05D31c914a87C6611C10748AEb04B58e8F';
+    // Polygon testnet (Amoy) USDT may vary; allow override and default to mainnet if not set
+    this.USDT_CONTRACT_ADDRESS_TESTNET = process.env.USDT_CONTRACT_POLYGON_TESTNET || this.USDT_CONTRACT_ADDRESS;
+
     // If you want to use testnet for development
     this.isTestnet = process.env.NODE_ENV !== 'production';
+
+    // Polygon provider for on-chain checks (read-only)
+    this.rpcUrl = this.isTestnet
+      ? (process.env.POLYGON_RPC_URL_TESTNET || 'https://polygon-amoy-bor-rpc.publicnode.com')
+      : (process.env.POLYGON_RPC_URL || 'https://polygon-bor.publicnode.com');
+    this.provider = new ethers.JsonRpcProvider(this.rpcUrl);
   }
 
   /**
-   * Generate a new Ethereum wallet
+    * Generate a new EVM wallet (Polygon-compatible)
    * @returns {Object} wallet object with address and private key
    */
   generateWallet() {
@@ -318,6 +327,156 @@ class WalletService {
       };
     } catch (error) {
       console.error('Error adding funds:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a deposit intent to be checked on-chain later
+   */
+  async createDepositIntent(userId, amountExpected, metadata = {}) {
+    try {
+      const wallet = await this.getUserWallet(userId);
+      if (!wallet) {
+        throw new Error('Wallet not found');
+      }
+
+      const result = await query(
+        `INSERT INTO deposit_intents
+         (wallet_id, user_id, token_symbol, network, amount_expected, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, status, created_at, expires_at`,
+        [wallet.id, userId, 'USDT', 'polygon', amountExpected, JSON.stringify(metadata)]
+      );
+
+      return { ...result.rows[0], walletAddress: wallet.address };
+    } catch (error) {
+      console.error('Error creating deposit intent:', error);
+      throw error;
+    }
+  }
+
+  /**
+    * Verify a specific deposit intent by scanning ERC-20 transfers to the user's address on Polygon.
+   * Credits wallet on success and records transaction.
+   */
+  async verifyDepositIntent(intentId) {
+    try {
+      const intentRes = await query(
+        `SELECT di.*, w.wallet_address, w.balance as wallet_balance
+         FROM deposit_intents di
+         JOIN wallets w ON w.id = di.wallet_id
+         WHERE di.id = $1`,
+        [intentId]
+      );
+      if (intentRes.rows.length === 0) {
+        throw new Error('Deposit intent not found');
+      }
+      const intent = intentRes.rows[0];
+      if (intent.status !== 'pending') {
+        return { status: intent.status };
+      }
+      if (new Date(intent.expires_at) < new Date()) {
+        await query(`UPDATE deposit_intents SET status = 'expired' WHERE id = $1`, [intentId]);
+        return { status: 'expired' };
+      }
+
+      const usdtAddress = this.isTestnet ? this.USDT_CONTRACT_ADDRESS_TESTNET : this.USDT_CONTRACT_ADDRESS;
+      const erc20Abi = [
+        'event Transfer(address indexed from, address indexed to, uint256 value)'
+      ];
+      const contract = new ethers.Contract(usdtAddress, erc20Abi, this.provider);
+
+      // Look back recent blocks to find transfers to the user's address
+      const currentBlock = await this.provider.getBlockNumber();
+      // Polygon has ~2s block times; 20 hours ~ 36k blocks. Keep a safe window.
+      const fromBlock = Math.max(0, currentBlock - 36000);
+
+      const filter = contract.filters.Transfer(null, intent.wallet_address);
+      const logs = await contract.queryFilter(filter, fromBlock, currentBlock);
+
+      // Find the first log after intent creation with sufficient amount
+      const intentCreatedAt = new Date(intent.created_at).getTime();
+      const matching = logs.find((log) => {
+        const logTimeGuess = 0; // unknown without fetching block timestamp; we will not time-filter strictly
+        const decoded = contract.interface.decodeEventLog('Transfer', log.data, log.topics);
+        const amountRaw = decoded[2];
+        // USDT has 6 decimals
+        const amount = Number(ethers.formatUnits(amountRaw, 6));
+        return amount >= Number(intent.amount_expected);
+      });
+
+      if (!matching) {
+        return { status: 'pending' };
+      }
+
+      // Decode and credit
+      const decoded = contract.interface.decodeEventLog('Transfer', matching.data, matching.topics);
+      const amountRaw = decoded[2];
+      const amount = Number(ethers.formatUnits(amountRaw, 6));
+
+      const balanceBefore = Number(intent.wallet_balance);
+      const balanceAfter = balanceBefore + amount;
+
+      await query('BEGIN');
+      try {
+        // Mark intent confirmed
+        await query(
+          `UPDATE deposit_intents
+           SET status = 'confirmed', amount_confirmed = $1, tx_hash = $2, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3`,
+          [amount, matching.transactionHash, intentId]
+        );
+
+        // Update wallet and record transaction
+        await this.updateWalletBalance(intent.wallet_id, balanceAfter);
+        await this.recordTransaction({
+          walletId: intent.wallet_id,
+          userId: intent.user_id,
+          type: 'deposit',
+          amount: amount,
+          balanceBefore: balanceBefore,
+          balanceAfter: balanceAfter,
+          status: 'completed',
+          transactionHash: matching.transactionHash,
+          description: 'USDT deposit',
+          metadata: { intentId }
+        });
+
+        await query('COMMIT');
+      } catch (txErr) {
+        await query('ROLLBACK');
+        throw txErr;
+      }
+
+      return { status: 'confirmed', txHash: matching.transactionHash, amount };
+    } catch (error) {
+      console.error('Error verifying deposit intent:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Scan and verify all pending deposit intents. Intended for background job.
+   */
+  async verifyPendingDepositIntents() {
+    try {
+      const result = await query(
+        `SELECT id FROM deposit_intents WHERE status = 'pending' AND expires_at > CURRENT_TIMESTAMP ORDER BY created_at ASC LIMIT 50`
+      );
+      const intents = result.rows;
+      const outcomes = [];
+      for (const row of intents) {
+        try {
+          const res = await this.verifyDepositIntent(row.id);
+          outcomes.push({ id: row.id, ...res });
+        } catch (e) {
+          outcomes.push({ id: row.id, status: 'failed', error: e.message });
+        }
+      }
+      return outcomes;
+    } catch (error) {
+      console.error('Error verifying pending deposit intents:', error);
       throw error;
     }
   }

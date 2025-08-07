@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import StoreSettings from '../../components/StoreSettings';
 
 const MyStore = () => {
   const [store, setStore] = useState(null);
@@ -8,10 +9,12 @@ const MyStore = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreateStore, setShowCreateStore] = useState(false);
+  const [showStoreSettings, setShowStoreSettings] = useState(false);
   const [storeForm, setStoreForm] = useState({
     name: '',
     description: '',
     isPublic: true,
+    slug: '',
     themeColor: '#007AFF'
   });
 
@@ -53,7 +56,7 @@ const MyStore = () => {
       if (response.success) {
         setStore(response.store);
         setShowCreateStore(false);
-        setStoreForm({ name: '', description: '', isPublic: true, themeColor: '#007AFF' });
+        setStoreForm({ name: '', description: '', isPublic: true, slug: '', themeColor: '#007AFF' });
       } else {
         setError(response.message || 'Failed to create store');
       }
@@ -73,6 +76,12 @@ const MyStore = () => {
       console.error('Failed to remove product:', err);
       setError('Failed to remove product');
     }
+  };
+
+  const handleStoreUpdate = (updatedStore) => {
+    setStore(updatedStore);
+    // Clear any existing errors
+    setError(null);
   };
 
   const renderStars = (rating) => {
@@ -160,6 +169,30 @@ const MyStore = () => {
 
               <div>
                 <label className="block text-sm font-medium text-apple-gray-700 mb-2">
+                  Store URL *
+                </label>
+                <div className="flex items-center">
+                  <span className="text-sm text-apple-gray-500 bg-apple-gray-50 border border-apple-gray-200 rounded-l-xl px-3 py-2 border-r-0">
+                    toosale.com/store/
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={storeForm.slug}
+                    onChange={(e) => setStoreForm(prev => ({ ...prev, slug: e.target.value.toLowerCase() }))}
+                    className="input-apple rounded-l-none flex-1"
+                    placeholder="your-store-url"
+                    maxLength="50"
+                    pattern="^[a-z0-9-]+$"
+                  />
+                </div>
+                <p className="text-xs text-apple-gray-500 mt-1">
+                  Choose a unique URL for your store. Use only lowercase letters, numbers, and hyphens.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-apple-gray-700 mb-2">
                   Store Description
                 </label>
                 <textarea
@@ -194,7 +227,7 @@ const MyStore = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !storeForm.name}
+                  disabled={loading || !storeForm.name || !storeForm.slug}
                   className="btn-apple flex-1"
                 >
                   {loading ? 'Creating...' : 'Create Store'}
@@ -223,7 +256,10 @@ const MyStore = () => {
           <p className="text-apple-gray-600 mt-2">Manage your store and track performance</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <button className="btn-apple-outline">
+          <button 
+            onClick={() => setShowStoreSettings(true)}
+            className="btn-apple-outline"
+          >
             Store Settings
           </button>
           <a
@@ -419,6 +455,14 @@ const MyStore = () => {
           </div>
         )}
       </div>
+
+      {/* Store Settings Modal */}
+      <StoreSettings
+        isOpen={showStoreSettings}
+        onClose={() => setShowStoreSettings(false)}
+        store={store}
+        onStoreUpdate={handleStoreUpdate}
+      />
     </div>
   );
 };

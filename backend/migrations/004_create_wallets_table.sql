@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS wallets (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  wallet_address VARCHAR(42) NOT NULL UNIQUE, -- Ethereum address format
+  wallet_address VARCHAR(42) NOT NULL UNIQUE, -- EVM address format (Polygon compatible)
   private_key_encrypted TEXT NOT NULL, -- Encrypted private key
   balance DECIMAL(18, 6) DEFAULT 0.00, -- USDT balance with 6 decimal places
   is_active BOOLEAN DEFAULT TRUE,

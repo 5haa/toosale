@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   balance_before DECIMAL(18, 6) NOT NULL,
   balance_after DECIMAL(18, 6) NOT NULL,
   status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'cancelled')),
-  transaction_hash VARCHAR(66), -- Ethereum transaction hash (optional for external transactions)
+  transaction_hash VARCHAR(66), -- EVM transaction hash (optional for external transactions)
   description TEXT,
   metadata JSONB, -- Additional transaction data (order_id, withdrawal_method, etc.)
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
