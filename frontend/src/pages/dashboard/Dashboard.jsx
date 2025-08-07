@@ -1,7 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Dashboard = () => {
+  const { user } = useAuth();
+  
   const stats = [
     {
       name: 'Store Products',
@@ -66,7 +69,7 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       ),
-      link: '/dashboard/products',
+      link: '/dashboard/browse-products',
       color: 'from-apple-blue to-blue-600'
     },
     {

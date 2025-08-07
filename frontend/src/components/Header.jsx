@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 import Cart from './Cart';
 
 const Header = () => {
@@ -8,9 +9,17 @@ const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const userMenuRef = useRef(null);
   
   const { items: cartItems, cartCount, updateQuantity, removeFromCart } = useCart();
+  const { user, isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setIsUserMenuOpen(false);
+    navigate('/');
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -108,70 +117,99 @@ const Header = () => {
               </button>
             )}
 
-            {/* Dashboard Link */}
-            <Link
-              to="/dashboard"
-              className="px-3 py-2 text-sm font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
-            >
-              Dashboard
-            </Link>
+            {/* Authentication-based Navigation */}
+            {isAuthenticated ? (
+              <>
+                {/* Dashboard Link */}
+                <Link
+                  to="/dashboard"
+                  className="px-3 py-2 text-sm font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
+                >
+                  Dashboard
+                </Link>
 
-            {/* User Menu */}
-            <div className="relative" ref={userMenuRef}>
-              <button
-                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
-              >
-                <div className="w-6 h-6 bg-apple-blue rounded-full flex items-center justify-center">
-                  <span className="text-white text-xs font-medium">U</span>
-                </div>
-                <span>Account</span>
-                <svg className={`w-4 h-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {/* User Dropdown */}
-              {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-apple-gray-200 py-2 z-50">
-                  <Link
-                    to="/dashboard"
-                    className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
-                    onClick={() => setIsUserMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    to="/dashboard/products"
-                    className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
-                    onClick={() => setIsUserMenuOpen(false)}
-                  >
-                    My Products
-                  </Link>
-                  <Link
-                    to="/dashboard/orders"
-                    className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
-                    onClick={() => setIsUserMenuOpen(false)}
-                  >
-                    Orders
-                  </Link>
-                  <hr className="my-2 border-apple-gray-200" />
-                  <Link
-                    to="/login"
-                    className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
-                    onClick={() => setIsUserMenuOpen(false)}
-                  >
-                    Sign In
-                  </Link>
+                {/* User Menu */}
+                <div className="relative" ref={userMenuRef}>
                   <button
-                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                    onClick={() => setIsUserMenuOpen(false)}
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
                   >
-                    Sign Out
+                    <div className="w-6 h-6 bg-apple-blue rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-medium">
+                        {user?.firstName?.charAt(0)?.toUpperCase() || 'U'}
+                      </span>
+                    </div>
+                    <span>{user?.firstName || 'Account'}</span>
+                    <svg className={`w-4 h-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
+
+                  {/* User Dropdown */}
+                  {isUserMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-apple-gray-200 py-2 z-50">
+                      <div className="px-4 py-2 border-b border-apple-gray-200">
+                        <p className="text-sm font-medium text-apple-gray-900">
+                          {user?.firstName} {user?.lastName}
+                        </p>
+                        <p className="text-xs text-apple-gray-500">{user?.email}</p>
+                      </div>
+                      <Link
+                        to="/dashboard"
+                        className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Dashboard
+                      </Link>
+                      <Link
+                        to="/dashboard/browse-products"
+                        className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Browse Products
+                      </Link>
+                      <Link
+                        to="/dashboard/orders"
+                        className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Orders
+                      </Link>
+                      <Link
+                        to="/dashboard/account"
+                        className="block px-4 py-2 text-sm text-apple-gray-700 hover:bg-apple-gray-50 hover:text-apple-blue"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Account Settings
+                      </Link>
+                      <hr className="my-2 border-apple-gray-200" />
+                      <button
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        onClick={handleLogout}
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                {/* Login and Signup buttons for non-authenticated users */}
+                <Link
+                  to="/login"
+                  className="px-3 py-2 text-sm font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/signup"
+                  className="px-4 py-2 text-sm font-medium text-white bg-apple-blue hover:bg-blue-600 rounded-lg transition-all duration-200"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -211,20 +249,49 @@ const Header = () => {
               </Link>
             ))}
             <div className="border-t border-apple-gray-200 pt-4 pb-3 space-y-1">
-              <Link
-                to="/dashboard"
-                className="block px-3 py-2 rounded-md text-base font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/login"
-                className="block px-3 py-2 rounded-md text-base font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Sign In
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link
+                    to="/dashboard"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-medium text-apple-gray-900">
+                      {user?.firstName} {user?.lastName}
+                    </p>
+                    <p className="text-xs text-apple-gray-500">{user?.email}</p>
+                  </div>
+                  <button
+                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Sign Up
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

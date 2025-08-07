@@ -4,6 +4,8 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import DashboardLayout from './components/DashboardLayout';
 import NotFound from './components/NotFound';
+import ProtectedRoute from './components/ProtectedRoute';
+import PublicRoute from './components/PublicRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -27,19 +29,31 @@ import Checkout from './pages/Checkout';
 import OrderSuccess from './pages/OrderSuccess';
 import ProductDetail from './pages/ProductDetail';
 import { CartProvider } from './contexts/CartContext';
+import { AuthProvider } from './contexts/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 
 function App() {
   return (
-    <Router>
-      <CartProvider>
-        <div className="App min-h-screen">
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <CartProvider>
+            <div className="App min-h-screen">
           <Routes>
           {/* Public Routes with Header/Footer */}
           <Route path="/" element={<PublicLayout />}>
             <Route index element={<Home />} />
-            <Route path="login" element={<Login />} />
-            <Route path="signup" element={<Signup />} />
+            <Route path="login" element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            } />
+            <Route path="signup" element={
+              <PublicRoute>
+                <Signup />
+              </PublicRoute>
+            } />
 
             <Route path="electronics" element={<CategoryPage category="Electronics" />} />
             <Route path="fashion" element={<CategoryPage category="Fashion" />} />
@@ -63,10 +77,14 @@ function App() {
           <Route path="checkout" element={<Checkout />} />
           <Route path="order-success" element={<OrderSuccess />} />
 
-          {/* Dashboard Routes */}
-          <Route path="/dashboard" element={<DashboardLayout />}>
+          {/* Dashboard Routes - Protected */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }>
             <Route index element={<Dashboard />} />
-            <Route path="products" element={<BrowseProducts />} />
+            <Route path="browse-products" element={<BrowseProducts />} />
             <Route path="my-store" element={<MyStore />} />
             <Route path="orders" element={<Orders />} />
             <Route path="wallet" element={<Wallet />} />
@@ -78,9 +96,11 @@ function App() {
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
           </Routes>
-        </div>
-      </CartProvider>
-    </Router>
+            </div>
+          </CartProvider>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
