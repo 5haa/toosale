@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const Wallet = () => {
   const [activeTab, setActiveTab] = useState('balance');
+  const navigate = useNavigate();
 
   const walletData = {
     balance: 2547.83,
@@ -113,9 +115,18 @@ const Wallet = () => {
               <p className="text-3xl font-bold text-apple-gray-900">${walletData.balance.toFixed(2)}</p>
             </div>
           </div>
-          <div className="mt-4">
-            <button className="btn-apple w-full">
-              Withdraw Funds
+          <div className="mt-4 flex space-x-2">
+            <button 
+              onClick={() => navigate('/dashboard/wallet/deposit')} 
+              className="btn-apple flex-1 bg-green-600 hover:bg-green-700"
+            >
+              Deposit
+            </button>
+            <button 
+              onClick={() => navigate('/dashboard/wallet/withdraw')} 
+              className="btn-apple flex-1"
+            >
+              Withdraw
             </button>
           </div>
         </div>

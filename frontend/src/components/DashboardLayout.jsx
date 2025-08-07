@@ -71,7 +71,7 @@ const DashboardLayout = () => {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between h-16 px-6 border-b border-apple-gray-200">
           <Link to="/dashboard" className="text-2xl font-bold text-apple-gray-800">
             TooSale Pro
@@ -86,7 +86,22 @@ const DashboardLayout = () => {
           </button>
         </div>
 
-        <nav className="mt-8 px-4 space-y-2">
+        {/* Wallet Balance Display */}
+        <div className="mt-6 mx-4 bg-gradient-to-r from-apple-blue to-blue-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm opacity-90">Wallet Balance</p>
+              <p className="text-xl font-bold">$2,547.83</p>
+            </div>
+            <div className="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <nav className="mt-8 px-4 space-y-2 flex-1 flex flex-col">
           {/* Main Navigation */}
           <div className="space-y-1">
             {navigation.map((item) => (
@@ -129,6 +144,81 @@ const DashboardLayout = () => {
           </div>
 
 
+          {/* Account Section */}
+          <div className="pt-6">
+            <h3 className="px-4 text-xs font-semibold text-apple-gray-500 uppercase tracking-wider mb-3">
+              Account
+            </h3>
+            <div className="space-y-1">
+              <Link
+                to="/dashboard/notifications"
+                className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors duration-200 ${
+                  isActivePath('/dashboard/notifications')
+                    ? 'bg-apple-blue text-white shadow-lg'
+                    : 'text-apple-gray-700 hover:bg-apple-gray-100 hover:text-apple-blue'
+                }`}
+              >
+                <span className="mr-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </span>
+                Notifications
+              </Link>
+              <Link
+                to="/dashboard/support"
+                className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors duration-200 ${
+                  isActivePath('/dashboard/support')
+                    ? 'bg-apple-blue text-white shadow-lg'
+                    : 'text-apple-gray-700 hover:bg-apple-gray-100 hover:text-apple-blue'
+                }`}
+              >
+                <span className="mr-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </span>
+                Support
+              </Link>
+              <Link
+                to="/dashboard/account"
+                className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors duration-200 ${
+                  isActivePath('/dashboard/account')
+                    ? 'bg-apple-blue text-white shadow-lg'
+                    : 'text-apple-gray-700 hover:bg-apple-gray-100 hover:text-apple-blue'
+                }`}
+              >
+                <span className="mr-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </span>
+                Account
+              </Link>
+            </div>
+          </div>
+
+          {/* Logout Button */}
+          <div className="pt-6 mt-auto">
+            <div className="px-4">
+              <button
+                onClick={() => {
+                  // In a real app, this would handle logout logic
+                  console.log('Logging out...');
+                  window.location.href = '/login';
+                }}
+                className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors duration-200"
+              >
+                <span className="mr-3">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </span>
+                Logout
+              </button>
+            </div>
+          </div>
+
         </nav>
       </div>
 
@@ -150,18 +240,9 @@ const DashboardLayout = () => {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1"></div>
             <div className="flex items-center gap-x-3 lg:gap-x-4">
-              {/* Search in Dashboard */}
-              <button 
-                className="p-2 text-apple-gray-500 hover:text-apple-gray-700 hover:bg-apple-gray-100 rounded-lg transition-colors"
-                aria-label="Search"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </button>
-
               {/* Notifications */}
-              <button 
+              <Link
+                to="/dashboard/notifications"
                 className="relative p-2 text-apple-gray-500 hover:text-apple-gray-700 hover:bg-apple-gray-100 rounded-lg transition-colors"
                 aria-label="Notifications"
               >
@@ -170,7 +251,7 @@ const DashboardLayout = () => {
                 </svg>
                 {/* Notification badge */}
                 <span className="absolute top-1 right-1 bg-red-500 text-white text-xs font-bold rounded-full h-3 w-3"></span>
-              </button>
+              </Link>
 
               {/* Profile dropdown */}
               <div className="relative">

@@ -27,17 +27,22 @@ const Header = () => {
   }, []);
 
   const navigationItems = [
-    { name: 'Store', path: '/store' },
-    { name: 'Electronics', path: '/electronics' },
-    { name: 'Fashion', path: '/fashion' },
-    { name: 'Home', path: '/home' },
-    { name: 'Sports', path: '/sports' },
-    { name: 'Beauty', path: '/beauty' },
-    { name: 'Accessories', path: '/accessories' },
-    { name: 'Support', path: '/support' }
+    { name: 'Products', path: '/products' },
+    { name: 'Dropshipping', path: '/dropshipping' },
+    { name: 'Tools', path: '/tools' },
+    { name: 'Fees', path: '/fees' }
   ];
 
   const isActiveLink = (path) => location.pathname === path;
+
+  // Determine if current page should show search and cart
+  const isShopPage = () => {
+    const path = location.pathname;
+    const shopPaths = ['/products', '/electronics', '/fashion', '/home', '/sports', '/beauty', '/accessories'];
+    return shopPaths.includes(path) || path.startsWith('/product/');
+  };
+
+  const showSearchAndCart = isShopPage();
 
   return (
     <header className="bg-white border-b border-apple-gray-200 sticky top-0 z-50 shadow-sm">
@@ -71,33 +76,37 @@ const Header = () => {
 
           {/* Auth Links & Actions */}
           <div className="hidden md:flex items-center space-x-3">
-            {/* Search Button */}
-            <button 
-              className="p-2 text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
-              aria-label="Search"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
+            {/* Search Button - Only show on shop pages */}
+            {showSearchAndCart && (
+              <button 
+                className="p-2 text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
+                aria-label="Search"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+            )}
 
-            {/* Shopping Cart */}
-            <button 
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
-              aria-label="Shopping cart"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1 7H6L5 9z" />
-                <circle cx="9" cy="20" r="1"/>
-                <circle cx="15" cy="20" r="1"/>
-              </svg>
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-apple-blue text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </button>
+            {/* Shopping Cart - Only show on shop pages */}
+            {showSearchAndCart && (
+              <button 
+                onClick={() => setIsCartOpen(true)}
+                className="relative p-2 text-apple-gray-600 hover:text-apple-blue hover:bg-apple-gray-50 rounded-lg transition-all duration-200"
+                aria-label="Shopping cart"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1 7H6L5 9z" />
+                  <circle cx="9" cy="20" r="1"/>
+                  <circle cx="15" cy="20" r="1"/>
+                </svg>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-apple-blue text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Dashboard Link */}
             <Link
@@ -221,14 +230,16 @@ const Header = () => {
         </div>
       )}
 
-      {/* Cart Component */}
-      <Cart
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cartItems={cartItems}
-        onUpdateQuantity={updateQuantity}
-        onRemoveItem={removeFromCart}
-      />
+      {/* Cart Component - Only render on shop pages */}
+      {showSearchAndCart && (
+        <Cart
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          cartItems={cartItems}
+          onUpdateQuantity={updateQuantity}
+          onRemoveItem={removeFromCart}
+        />
+      )}
     </header>
   );
 };

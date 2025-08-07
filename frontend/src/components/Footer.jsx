@@ -4,67 +4,30 @@ import { Link } from 'react-router-dom';
 const Footer = () => {
   const footerSections = [
     {
-      title: 'Shop and Learn',
+      title: 'Shop',
       links: [
-        { name: 'Store', path: '/store' },
+        { name: 'Products', path: '/products' },
         { name: 'Electronics', path: '/electronics' },
         { name: 'Fashion', path: '/fashion' },
         { name: 'Home & Garden', path: '/home' },
-        { name: 'Sports & Outdoors', path: '/sports' },
-        { name: 'Beauty & Health', path: '/beauty' },
-        { name: 'Accessories', path: '/accessories' },
-        { name: 'Gift Cards', path: '/gift-cards' }
+        { name: 'Sports', path: '/sports' },
+        { name: 'Beauty', path: '/beauty' },
+        { name: 'Accessories', path: '/accessories' }
       ]
     },
     {
       title: 'Account',
       links: [
-        { name: 'Manage Your Account', path: '/account' },
-        { name: 'Order Status', path: '/orders' },
-        { name: 'Shipping Info', path: '/shipping' },
-        { name: 'Returns', path: '/returns' }
+        { name: 'Sign In', path: '/login' },
+        { name: 'Create Account', path: '/signup' },
+        { name: 'Dashboard', path: '/dashboard' }
       ]
     },
     {
-      title: 'TooSale Store',
+      title: 'Support',
       links: [
-        { name: 'Find a Store', path: '/stores' },
-        { name: 'Today at TooSale', path: '/events' },
-        { name: 'TooSale Store App', path: '/app' },
-        { name: 'Certified Refurbished', path: '/refurbished' },
-        { name: 'Financing', path: '/financing' },
-        { name: 'Trade In', path: '/trade-in' },
-        { name: 'Order Status', path: '/order-status' },
-        { name: 'Shopping Help', path: '/help' }
-      ]
-    },
-    {
-      title: 'For Business',
-      links: [
-        { name: 'TooSale and Business', path: '/business' },
-        { name: 'Shop for Business', path: '/business/shop' }
-      ]
-    },
-    {
-      title: 'TooSale Values',
-      links: [
-        { name: 'Accessibility', path: '/accessibility' },
-        { name: 'Environment', path: '/environment' },
-        { name: 'Inclusion and Diversity', path: '/diversity' },
-        { name: 'Privacy', path: '/privacy' },
-        { name: 'Supply Chain', path: '/supply-chain' }
-      ]
-    },
-    {
-      title: 'About TooSale',
-      links: [
-        { name: 'Newsroom', path: '/newsroom' },
-        { name: 'TooSale Leadership', path: '/leadership' },
-        { name: 'Career Opportunities', path: '/careers' },
-        { name: 'Investors', path: '/investors' },
-        { name: 'Ethics & Compliance', path: '/ethics' },
-        { name: 'Events', path: '/events' },
-        { name: 'Contact TooSale', path: '/contact' }
+        { name: 'Help Center', path: '/support' },
+        { name: 'Contact Us', path: '/contact' }
       ]
     }
   ];
@@ -73,7 +36,7 @@ const Footer = () => {
     <footer className="bg-apple-gray-100 border-t border-apple-gray-200">
       <div className="section-padding py-12">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {footerSections.map((section, index) => (
             <div key={index} className="space-y-4">
               <h3 className="text-sm font-semibold text-apple-gray-800 tracking-wide uppercase">
@@ -149,10 +112,7 @@ const Footer = () => {
               Privacy Policy
             </Link>
             <Link to="/terms" className="text-sm text-apple-gray-500 hover:text-apple-blue transition-colors duration-200">
-              Terms of Use
-            </Link>
-            <Link to="/legal" className="text-sm text-apple-gray-500 hover:text-apple-blue transition-colors duration-200">
-              Legal
+              Terms of Service
             </Link>
           </div>
         </div>

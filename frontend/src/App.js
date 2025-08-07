@@ -7,15 +7,25 @@ import NotFound from './components/NotFound';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import Store from './pages/Store';
+
 import PublicStore from './pages/PublicStore';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
+import Products from './pages/Products';
+import Dropshipping from './pages/Dropshipping';
+import Tools from './pages/Tools';
+import Fees from './pages/Fees';
 import Dashboard from './pages/dashboard/Dashboard';
 import BrowseProducts from './pages/dashboard/BrowseProducts';
 import MyStore from './pages/dashboard/MyStore';
 import Orders from './pages/dashboard/Orders';
 import Wallet from './pages/dashboard/Wallet';
+import Notifications from './pages/dashboard/Notifications';
+import Support from './pages/dashboard/Support';
+import Account from './pages/dashboard/Account';
 import Checkout from './pages/Checkout';
 import OrderSuccess from './pages/OrderSuccess';
+import ProductDetail from './pages/ProductDetail';
 import { CartProvider } from './contexts/CartContext';
 import './index.css';
 
@@ -30,7 +40,7 @@ function App() {
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />
             <Route path="signup" element={<Signup />} />
-            <Route path="store" element={<Store />} />
+
             <Route path="electronics" element={<CategoryPage category="Electronics" />} />
             <Route path="fashion" element={<CategoryPage category="Fashion" />} />
             <Route path="home" element={<CategoryPage category="Home & Garden" />} />
@@ -38,6 +48,12 @@ function App() {
             <Route path="beauty" element={<CategoryPage category="Beauty" />} />
             <Route path="accessories" element={<CategoryPage category="Accessories" />} />
             <Route path="product/:id" element={<ProductDetail />} />
+            <Route path="privacy" element={<Privacy />} />
+            <Route path="terms" element={<Terms />} />
+            <Route path="products" element={<Products />} />
+            <Route path="dropshipping" element={<Dropshipping />} />
+            <Route path="tools" element={<Tools />} />
+            <Route path="fees" element={<Fees />} />
           </Route>
 
           {/* Public Store Route - Standalone without Header/Footer */}
@@ -54,6 +70,9 @@ function App() {
             <Route path="my-store" element={<MyStore />} />
             <Route path="orders" element={<Orders />} />
             <Route path="wallet" element={<Wallet />} />
+            <Route path="notifications" element={<Notifications />} />
+            <Route path="support" element={<Support />} />
+            <Route path="account" element={<Account />} />
           </Route>
 
           {/* 404 Route */}
@@ -96,7 +115,7 @@ const CategoryPage = ({ category }) => (
     <section className="py-12">
       <div className="section-padding text-center">
         <p className="text-apple-gray-600 mb-8">Category page coming soon...</p>
-        <Link to="/store" className="btn-apple">
+        <Link to="/products" className="btn-apple">
           Browse All Products
         </Link>
       </div>
@@ -104,22 +123,7 @@ const CategoryPage = ({ category }) => (
   </div>
 );
 
-// Simple product detail component
-const ProductDetail = () => (
-  <div className="min-h-screen bg-white">
-    <section className="py-16">
-      <div className="section-padding text-center">
-        <h1 className="text-4xl font-bold text-apple-gray-800 mb-4">
-          Product Details
-        </h1>
-        <p className="text-apple-gray-600 mb-8">Product detail page coming soon...</p>
-        <Link to="/store" className="btn-apple">
-          Back to Store
-        </Link>
-      </div>
-    </section>
-  </div>
-);
+
 
 
 

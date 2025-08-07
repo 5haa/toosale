@@ -38,7 +38,7 @@ const NotFound = () => {
             Go back home
           </Link>
           <Link
-            to="/store"
+            to="/products"
             className="btn-apple-outline"
           >
             Visit Store

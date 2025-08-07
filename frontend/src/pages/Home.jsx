@@ -73,7 +73,7 @@ const Home = () => {
               Discover premium products at unbeatable prices. Fast shipping, easy returns, and exceptional customer service.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/store" className="btn-apple text-lg px-8 py-4">
+              <Link to="/products" className="btn-apple text-lg px-8 py-4">
                 Shop Now
               </Link>
               <Link to="/about" className="btn-apple-outline text-lg px-8 py-4">

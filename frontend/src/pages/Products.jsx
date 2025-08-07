@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const Store = () => {
+const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('featured');
 
@@ -78,6 +78,67 @@ const Store = () => {
       reviews: 45,
       image: 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=400&h=400&fit=crop',
       category: 'accessories'
+    },
+    {
+      id: 7,
+      name: 'Organic Skincare Set',
+      price: 129,
+      originalPrice: 179,
+      rating: 4.6,
+      reviews: 78,
+      image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop',
+      category: 'beauty'
+    },
+    {
+      id: 8,
+      name: 'Professional Camera',
+      price: 899,
+      originalPrice: 1199,
+      rating: 4.9,
+      reviews: 56,
+      image: 'https://images.unsplash.com/photo-1606983340126-99ab4feaa64a?w=400&h=400&fit=crop',
+      category: 'electronics',
+      badge: 'Professional'
+    },
+    {
+      id: 9,
+      name: 'Running Shoes',
+      price: 149,
+      originalPrice: 199,
+      rating: 4.7,
+      reviews: 234,
+      image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop',
+      category: 'sports'
+    },
+    {
+      id: 10,
+      name: 'Smart Home Hub',
+      price: 199,
+      originalPrice: 249,
+      rating: 4.5,
+      reviews: 89,
+      image: 'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=400&fit=crop',
+      category: 'home'
+    },
+    {
+      id: 11,
+      name: 'Designer Handbag',
+      price: 299,
+      originalPrice: 399,
+      rating: 4.8,
+      reviews: 145,
+      image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&h=400&fit=crop',
+      category: 'fashion'
+    },
+    {
+      id: 12,
+      name: 'Yoga Mat Set',
+      price: 79,
+      originalPrice: 99,
+      rating: 4.6,
+      reviews: 167,
+      image: 'https://images.unsplash.com/photo-1506629905607-bb15abbb937b?w=400&h=400&fit=crop',
+      category: 'sports'
     }
   ];
 
@@ -107,7 +168,7 @@ const Store = () => {
         <div className="section-padding">
           <div className="text-center">
             <h1 className="text-5xl font-bold text-apple-gray-800 mb-4">
-              Store
+              Products
             </h1>
             <p className="text-xl text-apple-gray-600 max-w-2xl mx-auto">
               Discover our complete collection of premium products at unbeatable prices.
@@ -226,4 +287,4 @@ const Store = () => {
   );
 };
 
-export default Store;
+export default Products;
